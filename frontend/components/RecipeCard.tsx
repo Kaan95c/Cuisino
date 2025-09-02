@@ -24,15 +24,62 @@ import { Colors } from '../constants/Colors';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
 interface RecipeCardProps {
   recipe: Recipe;
   onLike: (recipeId: string) => void;
   onSave: (recipeId: string) => void;
+  index?: number;
 }
 
-export default function RecipeCard({ recipe, onLike, onSave }: RecipeCardProps) {
-  const handlePress = () => {
+export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: RecipeCardProps) {
+  const scale = useSharedValue(0);
+  const opacity = useSharedValue(0);
+  const likeScale = useSharedValue(1);
+  const saveScale = useSharedValue(1);
+
+  useEffect(() => {
+    // Entrance animation with staggered delay
+    const delay = index * 150;
+    setTimeout(() => {
+      scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+      opacity.value = withTiming(1, { duration: 600 });
+    }, delay);
+  }, []);
+
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  const likeAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: likeScale.value }],
+  }));
+
+  const saveAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: saveScale.value }],
+  }));
+
+  const handlePress = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/recipe/${recipe.id}`);
+  };
+
+  const handleLike = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    likeScale.value = withSpring(1.2, { duration: 200 }, () => {
+      likeScale.value = withSpring(1, { duration: 200 });
+    });
+    onLike(recipe.id);
+  };
+
+  const handleSave = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    saveScale.value = withSpring(1.2, { duration: 200 }, () => {
+      saveScale.value = withSpring(1, { duration: 200 });
+    });
+    onSave(recipe.id);
   };
 
   const formatTimeAgo = (dateString: string) => {
