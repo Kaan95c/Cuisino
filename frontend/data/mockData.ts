@@ -78,7 +78,7 @@ export const mockRecipes: Recipe[] = [
       'Spread avocado mixture on toast',
       'Top with poached eggs and sprinkle with red pepper flakes'
     ],
-    image: DEFAULT_RECIPE_IMAGE,
+    image: RECIPE_IMAGES[1],
     author: {
       id: '2',
       name: 'Alex Green',
