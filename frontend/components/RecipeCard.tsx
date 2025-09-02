@@ -95,7 +95,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
   };
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, cardAnimatedStyle]}>
       {/* Header with author info */}
       <View style={styles.header}>
         <View style={styles.authorInfo}>
@@ -116,29 +116,29 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
       </View>
 
       {/* Recipe Image */}
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.9}>
+      <AnimatedTouchableOpacity onPress={handlePress} activeOpacity={0.95}>
         <Image
           source={{ uri: recipe.image }}
           style={styles.recipeImage}
           placeholder={{ uri: recipe.image }}
           contentFit="cover"
         />
-      </TouchableOpacity>
+      </AnimatedTouchableOpacity>
 
       {/* Action Buttons */}
       <View style={styles.actions}>
         <View style={styles.leftActions}>
-          <TouchableOpacity 
-            onPress={() => onLike(recipe.id)} 
-            style={styles.actionButton}
-            activeOpacity={0.7}
+          <AnimatedTouchableOpacity 
+            onPress={handleLike}
+            style={[styles.actionButton, likeAnimatedStyle]}
+            activeOpacity={0.8}
           >
             <Ionicons 
               name={recipe.isLiked ? "heart" : "heart-outline"} 
               size={24} 
               color={recipe.isLiked ? Colors.light.like : Colors.light.text} 
             />
-          </TouchableOpacity>
+          </AnimatedTouchableOpacity>
           <TouchableOpacity 
             onPress={handlePress} 
             style={styles.actionButton}
@@ -154,17 +154,17 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
             <Ionicons name="paper-plane-outline" size={22} color={Colors.light.text} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          onPress={() => onSave(recipe.id)} 
-          style={styles.actionButton}
-          activeOpacity={0.7}
+        <AnimatedTouchableOpacity 
+          onPress={handleSave}
+          style={[styles.actionButton, saveAnimatedStyle]}
+          activeOpacity={0.8}
         >
           <Ionicons 
             name={recipe.isSaved ? "bookmark" : "bookmark-outline"} 
             size={22} 
             color={recipe.isSaved ? Colors.light.save : Colors.light.text} 
           />
-        </TouchableOpacity>
+        </AnimatedTouchableOpacity>
       </View>
 
       {/* Content */}
