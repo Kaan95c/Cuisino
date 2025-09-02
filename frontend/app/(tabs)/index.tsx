@@ -248,11 +248,17 @@ export default function HomeScreen() {
           />
         }
         ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="restaurant-outline" size={64} color={Colors.light.textMuted} />
-            <Text style={styles.emptyText}>No recipes found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your search or pull to refresh</Text>
-          </View>
+          <EmptyState
+            icon="restaurant-outline"
+            title="No recipes found"
+            subtitle={
+              searchQuery 
+                ? "Try adjusting your search terms or explore different ingredients"
+                : "Pull down to refresh or add your first recipe!"
+            }
+            actionText={!searchQuery ? "Add Recipe" : undefined}
+            onAction={!searchQuery ? () => router.push('/(tabs)/add') : undefined}
+          />
         )}
       />
     </SafeAreaView>
