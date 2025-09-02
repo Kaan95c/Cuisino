@@ -142,8 +142,10 @@ export default function AddRecipeScreen() {
       recipes.unshift(newRecipe);
       await AsyncStorage.setItem('userRecipes', JSON.stringify(recipes));
 
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
       Alert.alert(
-        'Success!',
+        'Success! 🎉',
         'Your recipe has been published successfully!',
         [
           {
