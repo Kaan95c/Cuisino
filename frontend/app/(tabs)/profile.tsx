@@ -11,6 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
+import ShimmerImage from '../../components/ShimmerImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
@@ -75,11 +76,7 @@ export default function ProfileScreen() {
       onPress={() => router.push(`/recipe/${item.id}`)}
       activeOpacity={0.8}
     >
-      <Image
-        source={{ uri: item.image }}
-        style={styles.gridImage}
-        contentFit="cover"
-      />
+      <ShimmerImage source={{ uri: item.image }} style={styles.gridImage} contentFit="cover" />
       <View style={styles.gridOverlay}>
         <Text style={styles.gridTitle} numberOfLines={2}>
           {item.title}
@@ -104,11 +101,11 @@ export default function ProfileScreen() {
   const getEmptyMessage = () => {
     switch (activeTab) {
       case 'recipes':
-        return 'No recipes yet\nStart sharing your favorite recipes!';
+        return 'Aucune recette pour le moment\nPartage ta première recette !';
       case 'liked':
-        return 'No liked recipes\nLike recipes to see them here';
+        return 'Aucun like pour le moment\nAime des recettes pour les voir ici';
       case 'saved':
-        return 'No saved recipes\nSave recipes to see them here';
+        return 'Aucun enregistrement\nEnregistre des recettes pour les retrouver ici';
       default:
         return '';
     }
@@ -137,21 +134,21 @@ export default function ProfileScreen() {
           <View style={styles.stats}>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{userRecipes.length}</Text>
-              <Text style={styles.statLabel}>Recipes</Text>
+              <Text style={styles.statLabel}>Recettes</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{likedRecipes.length}</Text>
-              <Text style={styles.statLabel}>Liked</Text>
+              <Text style={styles.statLabel}>Likes</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{savedRecipes.length}</Text>
-              <Text style={styles.statLabel}>Saved</Text>
+              <Text style={styles.statLabel}>Enregistrées</Text>
             </View>
           </View>
 
           {/* Edit Profile Button */}
           <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editButtonText}>Edit Profile</Text>
+            <Text style={styles.editButtonText}>Éditer le profil</Text>
           </TouchableOpacity>
         </View>
 
@@ -163,14 +160,14 @@ export default function ProfileScreen() {
           >
             <Ionicons
               name="restaurant"
-              size={20}
-              color={activeTab === 'recipes' ? Colors.light.primary : Colors.light.textMuted}
+              size={18}
+              color={activeTab === 'recipes' ? Colors.light.white : Colors.light.text}
             />
             <Text style={[
               styles.tabText,
               activeTab === 'recipes' && styles.activeTabText
             ]}>
-              My Recipes
+              Mes recettes
             </Text>
           </TouchableOpacity>
           
@@ -180,14 +177,14 @@ export default function ProfileScreen() {
           >
             <Ionicons
               name="heart"
-              size={20}
-              color={activeTab === 'liked' ? Colors.light.primary : Colors.light.textMuted}
+              size={18}
+              color={activeTab === 'liked' ? Colors.light.white : Colors.light.text}
             />
             <Text style={[
               styles.tabText,
               activeTab === 'liked' && styles.activeTabText
             ]}>
-              Liked
+              Likées
             </Text>
           </TouchableOpacity>
           
@@ -197,14 +194,14 @@ export default function ProfileScreen() {
           >
             <Ionicons
               name="bookmark"
-              size={20}
-              color={activeTab === 'saved' ? Colors.light.primary : Colors.light.textMuted}
+              size={18}
+              color={activeTab === 'saved' ? Colors.light.white : Colors.light.text}
             />
             <Text style={[
               styles.tabText,
               activeTab === 'saved' && styles.activeTabText
             ]}>
-              Saved
+              Enregistrées
             </Text>
           </TouchableOpacity>
         </View>
@@ -227,7 +224,7 @@ export default function ProfileScreen() {
                   style={styles.addRecipeButton}
                   onPress={() => router.push('/(tabs)/add')}
                 >
-                  <Text style={styles.addRecipeButtonText}>Add Your First Recipe</Text>
+                  <Text style={styles.addRecipeButtonText}>Ajouter ma première recette</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -260,53 +257,53 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingVertical: 20,
     backgroundColor: Colors.light.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     backgroundColor: Colors.light.surface,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   name: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: Colors.light.text,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   bio: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
+    marginBottom: 18,
+    lineHeight: 21,
   },
   stats: {
     flexDirection: 'row',
-    marginBottom: 24,
+    marginBottom: 18,
   },
   statItem: {
     alignItems: 'center',
     marginHorizontal: 20,
   },
   statNumber: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: Colors.light.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.light.textMuted,
   },
   editButton: {
     backgroundColor: Colors.light.surface,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.light.border,
@@ -318,31 +315,35 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+    backgroundColor: Colors.light.background,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   tab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingVertical: 10,
+    marginHorizontal: 4,
+    borderRadius: 20,
+    backgroundColor: Colors.light.white,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   activeTab: {
-    borderBottomColor: Colors.light.primary,
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.light.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.text,
     marginLeft: 6,
   },
   activeTabText: {
-    color: Colors.light.primary,
-    fontWeight: '600',
+    color: Colors.light.white,
+    fontWeight: '700',
   },
   gridContainer: {
     paddingHorizontal: 16,
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
   },
   addRecipeButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.light.white,
   },
 });

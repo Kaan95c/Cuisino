@@ -20,6 +20,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { Recipe } from '../types';
 import { Colors } from '../constants/Colors';
+import ShimmerImage from './ShimmerImage';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
@@ -33,11 +34,22 @@ interface RecipeCardProps {
   index?: number;
 }
 
+function getCategoryFromRecipe(recipe: Recipe): string | null {
+  const title = recipe.title.toLowerCase();
+  const text = (recipe.ingredients || []).join(' ').toLowerCase() + ' ' + title;
+  if (/pizza|spaghetti|pasta|ital/i.test(text)) return 'Italien';
+  if (/cookie|chocolate|cake|dessert|sweet/i.test(text)) return 'Dessert';
+  if (/smoothie|bowl|juice|drink/i.test(text)) return 'Boisson';
+  if (/avocado|toast|egg|breakfast/i.test(text)) return 'Petit-déj';
+  return null;
+}
+
 export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: RecipeCardProps) {
   const scale = useSharedValue(0);
   const opacity = useSharedValue(0);
   const likeScale = useSharedValue(1);
   const saveScale = useSharedValue(1);
+  const imageScale = useSharedValue(1);
 
   useEffect(() => {
     // Entrance animation with staggered delay
@@ -61,9 +73,21 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
     transform: [{ scale: saveScale.value }],
   }));
 
+  const imageAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: imageScale.value }],
+  }));
+
   const handlePress = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/recipe/${recipe.id}`);
+  };
+
+  const handlePressIn = () => {
+    imageScale.value = withTiming(0.98, { duration: 120 });
+  };
+
+  const handlePressOut = () => {
+    imageScale.value = withTiming(1, { duration: 120 });
   };
 
   const handleLike = async () => {
@@ -75,24 +99,14 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
   };
 
   const handleSave = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await Haptics.impactAsync(Haptics.NotificationFeedbackType.Success);
     saveScale.value = withSpring(1.2, { duration: 200 }, () => {
       saveScale.value = withSpring(1, { duration: 200 });
     });
     onSave(recipe.id);
   };
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return `${Math.floor(diffInDays / 7)}w ago`;
-  };
+  const category = getCategoryFromRecipe(recipe);
 
   return (
     <Animated.View style={[styles.container, cardAnimatedStyle]}>
@@ -107,7 +121,6 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
           />
           <View style={styles.authorText}>
             <Text style={styles.authorName}>{recipe.author.name}</Text>
-            <Text style={styles.timeAgo}>{formatTimeAgo(recipe.createdAt)}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.moreButton}>
@@ -115,14 +128,54 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
         </TouchableOpacity>
       </View>
 
-      {/* Recipe Image */}
-      <AnimatedTouchableOpacity onPress={handlePress} activeOpacity={0.95}>
-        <Image
-          source={{ uri: recipe.image }}
-          style={styles.recipeImage}
-          placeholder={{ uri: recipe.image }}
-          contentFit="cover"
-        />
+      {/* Recipe Image with overlay */}
+      <AnimatedTouchableOpacity 
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={0.95}
+        style={styles.imageWrapper}
+      >
+        <Animated.View style={imageAnimatedStyle}>
+          <ShimmerImage source={{ uri: recipe.image }} style={styles.recipeImage} contentFit="cover" />
+        </Animated.View>
+        {/* Floating Save Button */}
+        <AnimatedTouchableOpacity 
+          onPress={handleSave}
+          style={[styles.floatingSave, saveAnimatedStyle]}
+          activeOpacity={0.8}
+        >
+          <Ionicons 
+            name={recipe.isSaved ? "bookmark" : "bookmark-outline"} 
+            size={20} 
+            color={Colors.light.white} 
+          />
+        </AnimatedTouchableOpacity>
+        {/* Likes pill */}
+        <AnimatedTouchableOpacity 
+          onPress={handleLike}
+          style={[styles.likesPill, likeAnimatedStyle]}
+          activeOpacity={0.8}
+        >
+          <Ionicons 
+            name={recipe.isLiked ? "heart" : "heart-outline"} 
+            size={14} 
+            color={recipe.isLiked ? Colors.light.like : Colors.light.white} 
+          />
+          <Text style={styles.likesPillText}>{recipe.likes}</Text>
+        </AnimatedTouchableOpacity>
+        {/* Category badge */}
+        {category && (
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryBadgeText}>{category}</Text>
+          </View>
+        )}
+        {/* Title overlay */}
+        <View style={styles.titleOverlay}>
+          <Text style={styles.titleOverlayText} numberOfLines={1}>
+            {recipe.title}
+          </Text>
+        </View>
       </AnimatedTouchableOpacity>
 
       {/* Action Buttons */}
@@ -169,12 +222,6 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
 
       {/* Content */}
       <View style={styles.content}>
-        {recipe.likes > 0 && (
-          <Text style={styles.likes}>
-            {recipe.likes} {recipe.likes === 1 ? 'like' : 'likes'}
-          </Text>
-        )}
-        
         <TouchableOpacity onPress={handlePress} activeOpacity={0.9}>
           <Text style={styles.title} numberOfLines={2}>
             {recipe.title}
@@ -186,7 +233,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
 
         {/* Ingredients Preview */}
         <View style={styles.ingredientsPreview}>
-          <Text style={styles.ingredientsLabel}>Ingredients:</Text>
+          <Text style={styles.ingredientsLabel}>Ingrédients</Text>
           <Text style={styles.ingredientsText} numberOfLines={2}>
             {recipe.ingredients.slice(0, 3).join(', ')}
             {recipe.ingredients.length > 3 && '...'}
@@ -236,18 +283,75 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.text,
   },
-  timeAgo: {
-    fontSize: 12,
-    color: Colors.light.textMuted,
-    marginTop: 2,
-  },
   moreButton: {
     padding: 4,
+  },
+  imageWrapper: {
+    position: 'relative',
   },
   recipeImage: {
     width: CARD_WIDTH,
     height: CARD_WIDTH * 0.8,
     backgroundColor: Colors.light.surface,
+  },
+  floatingSave: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likesPill: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    paddingHorizontal: 10,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  likesPillText: {
+    marginLeft: 6,
+    fontSize: 12,
+    color: Colors.light.white,
+    fontWeight: '600',
+  },
+  categoryBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 80,
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 10,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryBadgeText: {
+    color: Colors.light.white,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  titleOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  titleOverlayText: {
+    color: Colors.light.white,
+    fontSize: 16,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',
@@ -267,12 +371,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingBottom: 16,
-  },
-  likes: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginBottom: 8,
   },
   title: {
     fontSize: 18,

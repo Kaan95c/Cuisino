@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,30 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  Animated,
+  StatusBar,
 } from 'react-native';
 import { Image } from 'expo-image';
+import ShimmerImage from '../../components/ShimmerImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/Colors';
 import { Recipe } from '../../types';
 import { mockRecipes } from '../../data/mockData';
+import { BlurView } from 'expo-blur';
+import { useLanguage } from '../../context/LanguageContext';
 
 const { width } = Dimensions.get('window');
+const HERO_BASE_HEIGHT = width * 0.78;
 
 export default function RecipeDetailScreen() {
+  const { t } = useLanguage();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadRecipe();
@@ -31,7 +39,6 @@ export default function RecipeDetailScreen() {
 
   const loadRecipe = async () => {
     try {
-      // Get all recipes (mock + user recipes)
       const userRecipesData = await AsyncStorage.getItem('userRecipes');
       const userRecipes = userRecipesData ? JSON.parse(userRecipesData) : [];
       const allRecipes = [...mockRecipes, ...userRecipes];
@@ -41,7 +48,6 @@ export default function RecipeDetailScreen() {
       if (foundRecipe) {
         setRecipe(foundRecipe);
         
-        // Load like and save status
         const likedRecipes = await AsyncStorage.getItem('likedRecipes');
         const savedRecipes = await AsyncStorage.getItem('savedRecipes');
         
@@ -51,13 +57,13 @@ export default function RecipeDetailScreen() {
         setIsLiked(likedIds.includes(id));
         setIsSaved(savedIds.includes(id));
       } else {
-        Alert.alert('Error', 'Recipe not found', [
-          { text: 'OK', onPress: () => router.back() }
+        Alert.alert(t('alert_error'), '', [
+          { text: t('alert_ok'), onPress: () => router.back() }
         ]);
       }
     } catch (error) {
       console.error('Error loading recipe:', error);
-      Alert.alert('Error', 'Failed to load recipe');
+      Alert.alert(t('alert_error'), '');
     }
   };
 
@@ -76,7 +82,7 @@ export default function RecipeDetailScreen() {
       setIsLiked(!isLiked);
     } catch (error) {
       console.error('Error updating like:', error);
-      Alert.alert('Error', 'Failed to update like status');
+      Alert.alert(t('alert_error'), '');
     }
   };
 
@@ -95,7 +101,7 @@ export default function RecipeDetailScreen() {
       setIsSaved(!isSaved);
     } catch (error) {
       console.error('Error updating save:', error);
-      Alert.alert('Error', 'Failed to update save status');
+      Alert.alert(t('alert_error'), '');
     }
   };
 
@@ -104,93 +110,104 @@ export default function RecipeDetailScreen() {
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
     
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInHours < 1) return t('just_now');
+    if (diffInHours < 24) return `${diffInHours}${t('h')}`;
     const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return `${Math.floor(diffInDays / 7)}w ago`;
+    if (diffInDays < 7) return `${diffInDays}${t('d')}`;
+    return `${Math.floor(diffInDays / 7)}${t('w')}`;
   };
 
   if (!recipe) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading recipe...</Text>
+          <Text style={styles.loadingText}>{t('empty_hint_default')}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const heroHeight = scrollY.interpolate({
+    inputRange: [-150, 0, 200],
+    outputRange: [HERO_BASE_HEIGHT + 150, HERO_BASE_HEIGHT, HERO_BASE_HEIGHT - 80],
+    extrapolate: 'clamp',
+  });
+
+  const titleOpacity = scrollY.interpolate({
+    inputRange: [0, 120, 200],
+    outputRange: [1, 0.6, 0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Recipe Image */}
-        <Image
-          source={{ uri: recipe.image }}
-          style={styles.heroImage}
-          contentFit="cover"
-        />
-
-        {/* Action Buttons Overlay */}
-        <View style={styles.actionsOverlay}>
-          <TouchableOpacity onPress={handleLike} style={styles.actionButton}>
-            <Ionicons 
-              name={isLiked ? "heart" : "heart-outline"} 
-              size={28} 
-              color={isLiked ? Colors.light.like : Colors.light.white} 
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleSave} style={styles.actionButton}>
-            <Ionicons 
-              name={isSaved ? "bookmark" : "bookmark-outline"} 
-              size={26} 
-              color={isSaved ? Colors.light.save : Colors.light.white} 
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Content */}
-        <View style={styles.content}>
-          {/* Title and Author */}
-          <View style={styles.titleSection}>
-            <Text style={styles.title}>{recipe.title}</Text>
-            <View style={styles.authorInfo}>
-              <Image
-                source={{ uri: recipe.author.avatar }}
-                style={styles.authorAvatar}
-                contentFit="cover"
-              />
-              <View style={styles.authorText}>
-                <Text style={styles.authorName}>by {recipe.author.name}</Text>
-                <Text style={styles.timeAgo}>{formatTimeAgo(recipe.createdAt)}</Text>
-              </View>
+      <Animated.ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([
+          { nativeEvent: { contentOffset: { y: scrollY } } }
+        ], { useNativeDriver: false })}
+      >
+        <Animated.View style={[styles.heroWrapper, { height: heroHeight }]}> 
+          <ShimmerImage source={{ uri: recipe.image }} style={styles.heroImage} contentFit="cover" />
+          <View style={styles.topBar}>
+            <TouchableOpacity style={styles.topBtn} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={22} color={Colors.light.white} />
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={styles.topBtn} onPress={handleLike}>
+                <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={20} color={isLiked ? Colors.light.like : Colors.light.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.topBtn} onPress={handleSave}>
+                <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={18} color={isSaved ? Colors.light.save : Colors.light.white} />
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Description */}
+          <Animated.View style={[styles.titleOverlay, { opacity: titleOpacity }]}> 
+            <BlurView intensity={30} tint="dark" style={styles.blurPill}>
+              <Text style={styles.titleOverlayText} numberOfLines={2}>{recipe.title}</Text>
+            </BlurView>
+          </Animated.View>
+        </Animated.View>
+
+        <View style={styles.content}>
+          <View style={styles.authorRow}>
+            <Image
+              source={{ uri: recipe.author.avatar }}
+              style={styles.authorAvatar}
+              contentFit="cover"
+            />
+            <View style={styles.authorCol}>
+              <Text style={styles.authorName}>{recipe.author.name}</Text>
+              <Text style={styles.timeAgo}>{formatTimeAgo(recipe.createdAt)}</Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <View style={styles.statsBadge}>
+              <Ionicons name="heart" size={14} color={Colors.light.like} />
+              <Text style={styles.statsBadgeText}>{recipe.likes}</Text>
+            </View>
+          </View>
+
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('presentation')}</Text>
             <Text style={styles.description}>{recipe.description}</Text>
           </View>
 
-          {/* Stats */}
           <View style={styles.statsSection}>
             <View style={styles.statItem}>
-              <Ionicons name="heart" size={16} color={Colors.light.like} />
-              <Text style={styles.statText}>{recipe.likes} likes</Text>
-            </View>
-            <View style={styles.statItem}>
               <Ionicons name="time" size={16} color={Colors.light.textMuted} />
-              <Text style={styles.statText}>30 min</Text>
+              <Text style={styles.statText}>{`30 ${t('minutes')}`}</Text>
             </View>
             <View style={styles.statItem}>
               <Ionicons name="people" size={16} color={Colors.light.textMuted} />
-              <Text style={styles.statText}>4 servings</Text>
+              <Text style={styles.statText}>{`4 ${t('servings')}`}</Text>
             </View>
           </View>
 
-          {/* Ingredients */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ingredients</Text>
+            <Text style={styles.sectionTitle}>{t('ingredients')}</Text>
             <View style={styles.ingredientsList}>
               {recipe.ingredients.map((ingredient, index) => (
                 <View key={index} style={styles.ingredientItem}>
@@ -201,9 +218,8 @@ export default function RecipeDetailScreen() {
             </View>
           </View>
 
-          {/* Instructions */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Instructions</Text>
+            <Text style={styles.sectionTitle}>{t('steps')}</Text>
             <View style={styles.instructionsList}>
               {recipe.instructions.map((instruction, index) => (
                 <View key={index} style={styles.instructionItem}>
@@ -216,15 +232,14 @@ export default function RecipeDetailScreen() {
             </View>
           </View>
 
-          {/* Action Buttons */}
           <View style={styles.bottomActions}>
-            <TouchableOpacity style={styles.shareButton} onPress={() => Alert.alert('Share', 'Share functionality coming soon!')}>
-              <Ionicons name="share-outline" size={20} color={Colors.light.primary} />
-              <Text style={styles.shareButtonText}>Share Recipe</Text>
+            <TouchableOpacity style={styles.shareButton} onPress={() => Alert.alert(t('share'), '')}>
+              <Ionicons name="share-outline" size={18} color={Colors.light.primary} />
+              <Text style={styles.shareButtonText}>{t('share')}</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
@@ -246,60 +261,79 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.light.textMuted,
   },
-  heroImage: {
+  heroWrapper: {
     width: width,
-    height: width * 0.8,
+    overflow: 'hidden',
     backgroundColor: Colors.light.surface,
   },
-  actionsOverlay: {
-    position: 'absolute',
-    top: 60,
-    right: 16,
-    gap: 12,
+  heroImage: {
+    width: '100%',
+    height: '100%',
   },
-  actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  topBar: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  topBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  titleOverlay: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+  },
+  blurPill: {
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  titleOverlayText: {
+    color: Colors.light.white,
+    fontSize: 20,
+    fontWeight: '800',
   },
   content: {
     backgroundColor: Colors.light.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    marginTop: -20,
-    paddingTop: 24,
+    marginTop: -16,
+    paddingTop: 20,
     paddingHorizontal: 16,
     paddingBottom: 32,
+    shadowColor: Colors.light.shadow,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 1,
   },
-  titleSection: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.light.text,
-    lineHeight: 34,
-    marginBottom: 16,
-  },
-  authorInfo: {
+  authorRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 14,
   },
   authorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.light.surface,
   },
-  authorText: {
+  authorCol: {
     marginLeft: 12,
   },
   authorName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.light.text,
   },
   timeAgo: {
@@ -307,21 +341,41 @@ const styles = StyleSheet.create({
     color: Colors.light.textMuted,
     marginTop: 2,
   },
+  statsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.surface,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    height: 28,
+    gap: 6,
+  },
+  statsBadgeText: {
+    fontSize: 12,
+    color: Colors.light.text,
+    fontWeight: '700',
+  },
   section: {
-    marginBottom: 24,
+    marginBottom: 22,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.light.text,
+    marginBottom: 10,
   },
   description: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.textSecondary,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   statsSection: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     backgroundColor: Colors.light.surface,
     borderRadius: 12,
-    paddingVertical: 16,
-    marginBottom: 24,
+    paddingVertical: 14,
+    marginBottom: 18,
   },
   statItem: {
     flexDirection: 'row',
@@ -329,18 +383,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statText: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
-    fontWeight: '500',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.light.text,
-    marginBottom: 16,
+    fontWeight: '600',
   },
   ingredientsList: {
-    gap: 12,
+    gap: 10,
   },
   ingredientItem: {
     flexDirection: 'row',
@@ -355,13 +403,13 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   ingredientText: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.text,
     lineHeight: 22,
     flex: 1,
   },
   instructionsList: {
-    gap: 16,
+    gap: 14,
   },
   instructionItem: {
     flexDirection: 'row',
@@ -379,33 +427,33 @@ const styles = StyleSheet.create({
   },
   stepNumberText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.light.white,
   },
   instructionText: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.text,
-    lineHeight: 24,
+    lineHeight: 22,
     flex: 1,
   },
   bottomActions: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 8,
   },
   shareButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.light.surface,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.light.border,
     gap: 8,
   },
   shareButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.light.primary,
   },
 });

@@ -38,8 +38,8 @@ export default function EmptyState({
     // Floating icon animation
     iconScale.value = withRepeat(
       withSequence(
-        withTiming(1.1, { duration: 2000 }),
-        withTiming(1, { duration: 2000 })
+        withTiming(1.08, { duration: 1800 }),
+        withTiming(1, { duration: 1800 })
       ),
       -1,
       false
@@ -65,7 +65,7 @@ export default function EmptyState({
       <Text style={styles.subtitle}>{subtitle}</Text>
       
       {actionText && onAction && (
-        <TouchableOpacity style={styles.actionButton} onPress={onAction}>
+        <TouchableOpacity style={styles.actionButton} onPress={onAction} activeOpacity={0.9}>
           <Text style={styles.actionButtonText}>{actionText}</Text>
           <Ionicons name="arrow-forward" size={16} color={Colors.light.white} />
         </TouchableOpacity>
@@ -79,44 +79,44 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 32,
+    paddingVertical: 56,
+    paddingHorizontal: 28,
   },
   iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: Colors.light.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
     shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 6,
+    elevation: 3,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 19,
+    fontWeight: '800',
     color: Colors.light.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.light.textMuted,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
+    lineHeight: 21,
+    marginBottom: 20,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.light.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: 22,
     shadowColor: Colors.light.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -125,8 +125,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.light.white,
   },
 });
