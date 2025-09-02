@@ -180,7 +180,7 @@ export const mockRecipes: Recipe[] = [
       'Bake for 10-12 minutes until golden',
       'Add fresh basil before serving'
     ],
-    image: DEFAULT_RECIPE_IMAGE,
+    image: RECIPE_IMAGES[4],
     author: mockCurrentUser,
     likes: 278,
     createdAt: '2024-01-11T18:30:00Z',
