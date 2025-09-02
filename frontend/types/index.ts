@@ -14,6 +14,7 @@ export interface Recipe {
   createdAt: string;
   isLiked: boolean;
   isSaved: boolean;
+  category?: string; // meal category (breakfast, lunch, dinner, snack, dessert, drink)
 }
 
 export interface User {

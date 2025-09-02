@@ -19,11 +19,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/Colors';
 import { Recipe } from '../../types';
 import { mockCurrentUser, mockRecipes } from '../../data/mockData';
+import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 const GRID_ITEM_SIZE = (width - 48) / 3; // 3 columns with 16px padding on each side and 8px gaps
 
 export default function ProfileScreen() {
+  const { colors } = useTheme();
+  const { t } = useLanguage();
   const [userRecipes, setUserRecipes] = useState<Recipe[]>([]);
   const [likedRecipes, setLikedRecipes] = useState<Recipe[]>([]);
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
@@ -112,7 +117,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -121,34 +126,53 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Profile Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          {/* Settings Button */}
+          <TouchableOpacity 
+            style={[styles.settingsButton, { backgroundColor: colors.surfaceSecondary }]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push('/settings');
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="settings-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
+
           <Image
             source={{ uri: mockCurrentUser.avatar }}
             style={styles.avatar}
             contentFit="cover"
           />
-          <Text style={styles.name}>{mockCurrentUser.name}</Text>
-          <Text style={styles.bio}>{mockCurrentUser.bio}</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{mockCurrentUser.name}</Text>
+          <Text style={[styles.bio, { color: colors.textSecondary }]}>{mockCurrentUser.bio}</Text>
           
           {/* Stats */}
           <View style={styles.stats}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{userRecipes.length}</Text>
-              <Text style={styles.statLabel}>Recettes</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{userRecipes.length}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Recettes</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{likedRecipes.length}</Text>
-              <Text style={styles.statLabel}>Likes</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{likedRecipes.length}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Likes</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{savedRecipes.length}</Text>
-              <Text style={styles.statLabel}>Enregistrées</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{savedRecipes.length}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Enregistrées</Text>
             </View>
           </View>
 
           {/* Edit Profile Button */}
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editButtonText}>Éditer le profil</Text>
+          <TouchableOpacity 
+            style={[styles.editButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push('/edit-profile');
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.editButtonText, { color: colors.text }]}>Éditer le profil</Text>
           </TouchableOpacity>
         </View>
 
@@ -249,7 +273,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
   },
   scrollView: {
     flex: 1,
@@ -258,9 +281,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 20,
-    backgroundColor: Colors.light.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+    position: 'relative',
+  },
+  settingsButton: {
+    position: 'absolute',
+    top: 20,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   avatar: {
     width: 92,

@@ -20,14 +20,28 @@ import { router } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { Recipe } from '../../types';
 import { mockCurrentUser } from '../../data/mockData';
+import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function AddRecipeScreen() {
+  const { colors } = useTheme();
+  const { t } = useLanguage();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [ingredients, setIngredients] = useState(['']);
   const [instructions, setInstructions] = useState(['']);
   const [image, setImage] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const mealCategories = [
+    { key: 'breakfast', label: 'Petit-déjeuner', icon: 'sunny', color: '#FFB84D' },
+    { key: 'lunch', label: 'Déjeuner', icon: 'restaurant', color: '#4ECDC4' },
+    { key: 'dinner', label: 'Dîner', icon: 'moon', color: '#7C5CFC' },
+    { key: 'snack', label: 'Goûter', icon: 'cafe', color: '#FF6B9D' },
+    { key: 'dessert', label: 'Dessert', icon: 'ice-cream', color: '#96CEB4' },
+    { key: 'drink', label: 'Boisson', icon: 'wine', color: '#45B7D1' },
+  ];
 
   const pickImage = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -90,25 +104,29 @@ export default function AddRecipeScreen() {
 
   const validateForm = () => {
     if (!title.trim()) {
-      Alert.alert('Error', 'Please enter a recipe title');
+      Alert.alert('Erreur', 'Veuillez entrer un titre pour votre recette');
       return false;
     }
     if (!description.trim()) {
-      Alert.alert('Error', 'Please enter a recipe description');
+      Alert.alert('Erreur', 'Veuillez entrer une description pour votre recette');
       return false;
     }
     if (!image) {
-      Alert.alert('Error', 'Please select an image for your recipe');
+      Alert.alert('Erreur', 'Veuillez sélectionner une image pour votre recette');
+      return false;
+    }
+    if (!selectedCategory) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une catégorie de repas');
       return false;
     }
     const validIngredients = ingredients.filter(ing => ing.trim());
     if (validIngredients.length === 0) {
-      Alert.alert('Error', 'Please add at least one ingredient');
+      Alert.alert('Erreur', 'Veuillez ajouter au moins un ingrédient');
       return false;
     }
     const validInstructions = instructions.filter(inst => inst.trim());
     if (validInstructions.length === 0) {
-      Alert.alert('Error', 'Please add at least one instruction');
+      Alert.alert('Erreur', 'Veuillez ajouter au moins une instruction');
       return false;
     }
     return true;
@@ -132,6 +150,7 @@ export default function AddRecipeScreen() {
         createdAt: new Date().toISOString(),
         isLiked: false,
         isSaved: false,
+        category: selectedCategory,
       };
 
       // Get existing recipes
@@ -145,8 +164,8 @@ export default function AddRecipeScreen() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       Alert.alert(
-        'Success! 🎉',
-        'Your recipe has been published successfully!',
+        'Succès ! 🎉',
+        'Votre recette a été publiée avec succès !',
         [
           {
             text: 'OK',
@@ -157,6 +176,7 @@ export default function AddRecipeScreen() {
               setIngredients(['']);
               setInstructions(['']);
               setImage(null);
+              setSelectedCategory('');
               
               // Navigate to home
               router.push('/(tabs)/');
@@ -173,7 +193,7 @@ export default function AddRecipeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
@@ -193,29 +213,79 @@ export default function AddRecipeScreen() {
 
           {/* Title */}
           <View style={styles.section}>
-            <Text style={styles.label}>Recipe Title</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Titre de la recette</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                backgroundColor: colors.surface, 
+                borderColor: colors.border,
+                color: colors.text 
+              }]}
               value={title}
               onChangeText={setTitle}
-              placeholder="Enter recipe title..."
-              placeholderTextColor={Colors.light.textMuted}
+              placeholder="Entrez le titre de votre recette..."
+              placeholderTextColor={colors.textMuted}
             />
           </View>
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={styles.label}>Description</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Description</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { 
+                backgroundColor: colors.surface, 
+                borderColor: colors.border,
+                color: colors.text 
+              }]}
               value={description}
               onChangeText={setDescription}
-              placeholder="Describe your recipe..."
-              placeholderTextColor={Colors.light.textMuted}
+              placeholder="Décrivez votre recette..."
+              placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
+          </View>
+
+          {/* Meal Category */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>Type de repas</Text>
+            <View style={styles.categoryGrid}>
+              {mealCategories.map((category) => (
+                <TouchableOpacity
+                  key={category.key}
+                  style={[
+                    styles.categoryChip,
+                    {
+                      backgroundColor: selectedCategory === category.key 
+                        ? category.color 
+                        : colors.surface,
+                      borderColor: selectedCategory === category.key 
+                        ? category.color 
+                        : colors.border,
+                    }
+                  ]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedCategory(category.key);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={category.icon as any}
+                    size={20}
+                    color={selectedCategory === category.key ? colors.white : category.color}
+                  />
+                  <Text style={[
+                    styles.categoryText,
+                    {
+                      color: selectedCategory === category.key ? colors.white : colors.text
+                    }
+                  ]}>
+                    {category.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* Ingredients */}
@@ -342,17 +412,37 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: Colors.light.white,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: Colors.light.text,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 2,
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   textArea: {
     height: 100,

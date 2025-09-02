@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   SafeAreaView,
-  TextInput,
   TouchableOpacity,
   Alert,
   RefreshControl,
   ScrollView,
+  TextInput,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -23,9 +24,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTheme } from '../../context/ThemeContext';
+import AdvancedSearch from '../../components/AdvancedSearch';
+import EnhancedCategoryChips from '../../components/EnhancedCategoryChips';
 
 export default function HomeScreen() {
   const { t } = useLanguage();
+  const { colors } = useTheme();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
@@ -193,6 +198,8 @@ export default function HomeScreen() {
     }
   };
 
+
+
   const renderRecipe = ({ item, index }: { item: Recipe; index: number }) => (
     <RecipeCard
       recipe={item}
@@ -204,68 +211,28 @@ export default function HomeScreen() {
 
   const HeaderHero = () => (
     <View style={styles.heroContainer}>
-      <LinearGradient
-        colors={[Colors.light.white, Colors.light.surfaceSecondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.heroGradient}
-      >
-        <View style={styles.heroTextBlock}>
-          <Text style={styles.heroTitle}>{t('home_hero_title')}</Text>
-          <Text style={styles.heroSubtitle}>{t('home_hero_sub')}</Text>
-        </View>
-        <TouchableOpacity style={styles.addFab} onPress={() => router.push('/(tabs)/add')} activeOpacity={0.9}>
-          <Ionicons name="add" size={22} color={Colors.light.white} />
-        </TouchableOpacity>
-      </LinearGradient>
-    </View>
-  );
-
-  const CategoryChips = () => (
-    <View style={styles.chipsWrapper}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipsContainer}
-      >
-        {CATEGORIES.map(({ key, label }) => {
-          const isActive = selectedCategory === key;
-          return (
-            <TouchableOpacity
-              key={key}
-              onPress={async () => {
-                await Haptics.selectionAsync();
-                setSelectedCategory(key);
-              }}
-              style={[styles.chip, isActive && styles.chipActive]}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      <View style={[styles.heroGradient, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.heroTitle, { color: colors.text }]}>Cuisino</Text>
+      </View>
     </View>
   );
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <HeaderHero />
         <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={t('search_placeholder')}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={Colors.light.textMuted}
-              editable={false}
-            />
-          </View>
+          <AdvancedSearch
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSearch={(query) => setSearchQuery(query)}
+          />
         </View>
-        <CategoryChips />
+
+        <EnhancedCategoryChips
+          selectedCategory={selectedCategory}
+          onCategorySelect={setSelectedCategory}
+        />
 
         <View style={styles.listContainer}>
           {[0, 1, 2].map((index) => (
@@ -277,27 +244,20 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <HeaderHero />
       <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Ionicons name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('search_placeholder')}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={Colors.light.textMuted}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={20} color={Colors.light.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+        <AdvancedSearch
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSearch={(query) => setSearchQuery(query)}
+        />
       </View>
 
-      <CategoryChips />
+      <EnhancedCategoryChips
+        selectedCategory={selectedCategory}
+        onCategorySelect={setSelectedCategory}
+      />
 
       <FlatList
         data={filteredRecipes}
@@ -306,12 +266,13 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+
         refreshControl={
           <RefreshControl 
             refreshing={isRefreshing} 
             onRefresh={onRefresh}
-            tintColor={Colors.light.primary}
-            colors={[Colors.light.primary]}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
         ListEmptyComponent={() => (
@@ -335,7 +296,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
   },
   heroContainer: {
     paddingHorizontal: 16,
@@ -344,99 +304,19 @@ const styles = StyleSheet.create({
   },
   heroGradient: {
     borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  heroTextBlock: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  heroTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: Colors.light.text,
-    fontFamily: 'PlayfairDisplay_700Bold',
-  },
-  heroSubtitle: {
-    marginTop: 6,
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    lineHeight: 18,
-    fontFamily: 'Inter_400Regular',
-  },
-  addFab: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.light.primary,
+    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
+  },
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    fontFamily: 'PlayfairDisplay_700Bold',
+    textAlign: 'center',
   },
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: Colors.light.background,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.white,
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: Colors.light.text,
-    fontFamily: 'Inter_400Regular',
-  },
-  clearButton: {
-    marginLeft: 8,
-  },
-  chipsWrapper: {
-    paddingLeft: 16,
-    paddingBottom: 8,
-  },
-  chipsContainer: {
-    paddingRight: 16,
-  },
-  chip: {
-    backgroundColor: Colors.light.white,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 18,
-    marginRight: 8,
-  },
-  chipActive: {
-    backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary,
-  },
-  chipText: {
-    fontSize: 13,
-    color: Colors.light.text,
-    fontWeight: '500',
-    fontFamily: 'Inter_600SemiBold',
-  },
-  chipTextActive: {
-    color: Colors.light.white,
   },
   listContainer: {
     paddingHorizontal: 16,

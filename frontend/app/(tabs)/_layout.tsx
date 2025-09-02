@@ -1,67 +1,33 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { Colors } from '../../constants/Colors';
-import { useColorScheme, Animated, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { router } from 'expo-router';
 import { useLanguage } from '../../context/LanguageContext';
 
-export default function TabsLayout() {
-  const { isDark } = useTheme();
+export default function TabLayout() {
+  const { colors, isDark } = useTheme();
   const { t } = useLanguage();
-  const theme = isDark ? Colors.dark : Colors.light;
-
-  const AnimatedIcon = ({ name, color, size, focused }: { name: keyof typeof Ionicons.glyphMap; color: string; size: number; focused: boolean }) => {
-    const scale = React.useRef(new Animated.Value(focused ? 1 : 0.9)).current;
-    const opacity = React.useRef(new Animated.Value(focused ? 1 : 0.7)).current;
-
-    React.useEffect(() => {
-      Animated.parallel([
-        Animated.timing(scale, { toValue: focused ? 1 : 0.9, duration: 180, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: focused ? 1 : 0.7, duration: 180, useNativeDriver: true }),
-      ]).start();
-      if (focused) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    }, [focused]);
-
-    return (
-      <Animated.View style={{ transform: [{ scale }], opacity }}>
-        <Ionicons name={name} size={size} color={color} />
-      </Animated.View>
-    );
-  };
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: theme.primary,
-        tabBarInactiveTintColor: theme.textMuted,
+        headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.white,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
-          height: 86,
-          paddingBottom: 18,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          height: 75,
+          paddingBottom: 20,
           paddingTop: 10,
         },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: '600',
           marginTop: 4,
         },
         tabBarIconStyle: {
-          marginBottom: -4,
-        },
-        headerStyle: {
-          backgroundColor: theme.background,
-        },
-        headerTintColor: theme.text,
-        headerTitleStyle: {
-          fontWeight: '700',
-          fontSize: 20,
+          marginTop: 4,
         },
       }}
     >
@@ -69,9 +35,8 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: t('tabs_home'),
-          headerTitle: t('header_home'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <AnimatedIcon name="home" size={size} color={color} focused={focused} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
           ),
         }}
       />
@@ -79,9 +44,8 @@ export default function TabsLayout() {
         name="add"
         options={{
           title: t('tabs_add'),
-          headerTitle: t('header_add'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <AnimatedIcon name="add-circle" size={size} color={color} focused={focused} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="add-circle" size={size} color={color} />
           ),
         }}
       />
@@ -89,18 +53,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: t('tabs_profile'),
-          headerTitle: t('header_profile'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <AnimatedIcon name="person" size={size} color={color} focused={focused} />
-          ),
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => router.push('/settings')}
-              style={{ marginRight: 12, padding: 6 }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="settings-outline" size={22} color={theme.text} />
-            </TouchableOpacity>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />
