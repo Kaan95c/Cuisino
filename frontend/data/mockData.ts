@@ -144,7 +144,7 @@ export const mockRecipes: Recipe[] = [
       'Sprinkle with granola, chia seeds, and coconut flakes',
       'Serve immediately'
     ],
-    image: DEFAULT_RECIPE_IMAGE,
+    image: RECIPE_IMAGES[3],
     author: {
       id: '4',
       name: 'Emma Wellness',
