@@ -8,12 +8,15 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { mockRecipes } from '../../data/mockData';
 import { Recipe } from '../../types';
 import { Colors } from '../../constants/Colors';
 import RecipeCard from '../../components/RecipeCard';
+import RecipeCardSkeleton from '../../components/RecipeCardSkeleton';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen() {
