@@ -47,20 +47,35 @@ export default function HomeScreen() {
     }
   }, [searchQuery, recipes]);
 
-  const loadData = async () => {
+  const loadData = async (showRefreshIndicator = false) => {
     try {
+      if (showRefreshIndicator) {
+        setIsRefreshing(true);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        setIsLoading(true);
+      }
+
+      // Simulate network loading
+      await new Promise(resolve => setTimeout(resolve, showRefreshIndicator ? 800 : 1500));
+
       // Load liked and saved recipes from storage
       const liked = await AsyncStorage.getItem('likedRecipes');
       const saved = await AsyncStorage.getItem('savedRecipes');
+      const userRecipesData = await AsyncStorage.getItem('userRecipes');
       
       const likedIds = liked ? JSON.parse(liked) : [];
       const savedIds = saved ? JSON.parse(saved) : [];
+      const userRecipes = userRecipesData ? JSON.parse(userRecipesData) : [];
       
       setLikedRecipes(likedIds);
       setSavedRecipes(savedIds);
 
+      // Combine mock recipes with user recipes
+      const allRecipes = [...userRecipes, ...mockRecipes];
+
       // Update recipes with like/save status
-      const updatedRecipes = mockRecipes.map(recipe => ({
+      const updatedRecipes = allRecipes.map(recipe => ({
         ...recipe,
         isLiked: likedIds.includes(recipe.id),
         isSaved: savedIds.includes(recipe.id),
@@ -72,7 +87,14 @@ export default function HomeScreen() {
       console.error('Error loading data:', error);
       setRecipes(mockRecipes);
       setFilteredRecipes(mockRecipes);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const onRefresh = () => {
+    loadData(true);
   };
 
   const handleLike = async (recipeId: string) => {
