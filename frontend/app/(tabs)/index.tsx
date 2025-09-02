@@ -167,13 +167,46 @@ export default function HomeScreen() {
     }
   };
 
-  const renderRecipe = ({ item }: { item: Recipe }) => (
+  const renderRecipe = ({ item, index }: { item: Recipe; index: number }) => (
     <RecipeCard
       recipe={item}
       onLike={handleLike}
       onSave={handleSave}
+      index={index}
     />
   );
+
+  const renderSkeleton = ({ index }: { index: number }) => (
+    <RecipeCardSkeleton key={`skeleton-${index}`} />
+  );
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputContainer}>
+            <Ionicons name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search recipes..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor={Colors.light.textMuted}
+              editable={false}
+            />
+          </View>
+        </View>
+
+        {/* Skeleton Loading */}
+        <View style={styles.listContainer}>
+          {[0, 1, 2].map((index) => (
+            <RecipeCardSkeleton key={`skeleton-${index}`} />
+          ))}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
