@@ -112,7 +112,7 @@ export const mockRecipes: Recipe[] = [
       'Add pasta water gradually to create creamy sauce',
       'Serve immediately with extra cheese and pepper'
     ],
-    image: DEFAULT_RECIPE_IMAGE,
+    image: RECIPE_IMAGES[2],
     author: {
       id: '3',
       name: 'Marco Rossi',
