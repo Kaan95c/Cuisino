@@ -237,11 +237,19 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh}
+            tintColor={Colors.light.primary}
+            colors={[Colors.light.primary]}
+          />
+        }
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Ionicons name="restaurant-outline" size={64} color={Colors.light.textMuted} />
             <Text style={styles.emptyText}>No recipes found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your search</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your search or pull to refresh</Text>
           </View>
         )}
       />
