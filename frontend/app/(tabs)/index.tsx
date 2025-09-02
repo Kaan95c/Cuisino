@@ -17,7 +17,9 @@ import { Recipe } from '../../types';
 import { Colors } from '../../constants/Colors';
 import RecipeCard from '../../components/RecipeCard';
 import RecipeCardSkeleton from '../../components/RecipeCardSkeleton';
+import EmptyState from '../../components/EmptyState';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 
 export default function HomeScreen() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
