@@ -99,6 +99,8 @@ export default function HomeScreen() {
 
   const handleLike = async (recipeId: string) => {
     try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
       let newLikedRecipes;
       if (likedRecipes.includes(recipeId)) {
         newLikedRecipes = likedRecipes.filter(id => id !== recipeId);
@@ -116,6 +118,14 @@ export default function HomeScreen() {
           : recipe
       );
       setRecipes(updatedRecipes);
+      
+      // Update filtered recipes too
+      const updatedFilteredRecipes = filteredRecipes.map(recipe =>
+        recipe.id === recipeId
+          ? { ...recipe, isLiked: !recipe.isLiked }
+          : recipe
+      );
+      setFilteredRecipes(updatedFilteredRecipes);
     } catch (error) {
       console.error('Error updating likes:', error);
       Alert.alert('Error', 'Failed to update like status');
@@ -124,6 +134,8 @@ export default function HomeScreen() {
 
   const handleSave = async (recipeId: string) => {
     try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
       let newSavedRecipes;
       if (savedRecipes.includes(recipeId)) {
         newSavedRecipes = savedRecipes.filter(id => id !== recipeId);
@@ -141,6 +153,14 @@ export default function HomeScreen() {
           : recipe
       );
       setRecipes(updatedRecipes);
+      
+      // Update filtered recipes too
+      const updatedFilteredRecipes = filteredRecipes.map(recipe =>
+        recipe.id === recipeId
+          ? { ...recipe, isSaved: !recipe.isSaved }
+          : recipe
+      );
+      setFilteredRecipes(updatedFilteredRecipes);
     } catch (error) {
       console.error('Error updating saves:', error);
       Alert.alert('Error', 'Failed to update save status');
