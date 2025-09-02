@@ -47,7 +47,7 @@ export const mockRecipes: Recipe[] = [
       'Bake 9-11 minutes until golden brown',
       'Cool on baking sheet for 2 minutes, then transfer to wire rack'
     ],
-    image: DEFAULT_RECIPE_IMAGE,
+    image: RECIPE_IMAGES[0],
     author: mockCurrentUser,
     likes: 124,
     createdAt: '2024-01-15T10:30:00Z',
