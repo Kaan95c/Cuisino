@@ -193,7 +193,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
           </Text>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
