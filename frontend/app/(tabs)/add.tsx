@@ -30,6 +30,8 @@ export default function AddRecipeScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const pickImage = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
     // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -47,6 +49,7 @@ export default function AddRecipeScreen() {
     });
 
     if (!result.canceled && result.assets[0].base64) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
     }
   };
