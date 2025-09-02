@@ -1,8 +1,16 @@
 import { Recipe, User } from '../types';
 
-// Default placeholder images as base64 (small 1x1 pixel images for demo)
-const DEFAULT_RECIPE_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
-const DEFAULT_AVATAR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAFCtFMYTwAAAABJRU5ErkJggg==';
+// High-quality food images for recipes
+const RECIPE_IMAGES = [
+  'https://images.unsplash.com/photo-1482049016688-2d3e1b311543?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxmb29kfGVufDB8fHx8MTc1NjgwMTk1Mnww&ixlib=rb-4.1.0&q=85',
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxmb29kfGVufDB8fHx8MTc1NjgwMTk1Mnww&ixlib=rb-4.1.0&q=85',
+  'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHw0fHxmb29kfGVufDB8fHx8MTc1NjgwMTk1Mnww&ixlib=rb-4.1.0&q=85',
+  'https://images.unsplash.com/photo-1466637574441-749b8f19452f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwzfHxjb29raW5nfGVufDB8fHx8MTc1NjgwMTk1OHww&ixlib=rb-4.1.0&q=85',
+  'https://images.pexels.com/photos/1640774/pexels-photo-1640774.jpeg',
+];
+
+// Default avatar placeholder
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80';
 
 export const mockCurrentUser: User = {
   id: '1',
