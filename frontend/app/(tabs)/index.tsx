@@ -25,6 +25,8 @@ export default function HomeScreen() {
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
   const [likedRecipes, setLikedRecipes] = useState<string[]>([]);
   const [savedRecipes, setSavedRecipes] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadData();
