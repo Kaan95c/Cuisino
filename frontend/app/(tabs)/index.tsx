@@ -1,0 +1,230 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  SafeAreaView,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { mockRecipes } from '../../data/mockData';
+import { Recipe } from '../../types';
+import { Colors } from '../../constants/Colors';
+import RecipeCard from '../../components/RecipeCard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export default function HomeScreen() {
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
+  const [likedRecipes, setLikedRecipes] = useState<string[]>([]);
+  const [savedRecipes, setSavedRecipes] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    // Filter recipes based on search query
+    if (searchQuery.trim() === '') {
+      setFilteredRecipes(recipes);
+    } else {
+      const filtered = recipes.filter(recipe =>
+        recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        recipe.ingredients.some(ingredient =>
+          ingredient.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      );
+      setFilteredRecipes(filtered);
+    }
+  }, [searchQuery, recipes]);
+
+  const loadData = async () => {
+    try {
+      // Load liked and saved recipes from storage
+      const liked = await AsyncStorage.getItem('likedRecipes');
+      const saved = await AsyncStorage.getItem('savedRecipes');
+      
+      const likedIds = liked ? JSON.parse(liked) : [];
+      const savedIds = saved ? JSON.parse(saved) : [];
+      
+      setLikedRecipes(likedIds);
+      setSavedRecipes(savedIds);
+
+      // Update recipes with like/save status
+      const updatedRecipes = mockRecipes.map(recipe => ({
+        ...recipe,
+        isLiked: likedIds.includes(recipe.id),
+        isSaved: savedIds.includes(recipe.id),
+      }));
+
+      setRecipes(updatedRecipes);
+      setFilteredRecipes(updatedRecipes);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setRecipes(mockRecipes);
+      setFilteredRecipes(mockRecipes);
+    }
+  };
+
+  const handleLike = async (recipeId: string) => {
+    try {
+      let newLikedRecipes;
+      if (likedRecipes.includes(recipeId)) {
+        newLikedRecipes = likedRecipes.filter(id => id !== recipeId);
+      } else {
+        newLikedRecipes = [...likedRecipes, recipeId];
+      }
+
+      setLikedRecipes(newLikedRecipes);
+      await AsyncStorage.setItem('likedRecipes', JSON.stringify(newLikedRecipes));
+
+      // Update recipe state
+      const updatedRecipes = recipes.map(recipe =>
+        recipe.id === recipeId
+          ? { ...recipe, isLiked: !recipe.isLiked }
+          : recipe
+      );
+      setRecipes(updatedRecipes);
+    } catch (error) {
+      console.error('Error updating likes:', error);
+      Alert.alert('Error', 'Failed to update like status');
+    }
+  };
+
+  const handleSave = async (recipeId: string) => {
+    try {
+      let newSavedRecipes;
+      if (savedRecipes.includes(recipeId)) {
+        newSavedRecipes = savedRecipes.filter(id => id !== recipeId);
+      } else {
+        newSavedRecipes = [...savedRecipes, recipeId];
+      }
+
+      setSavedRecipes(newSavedRecipes);
+      await AsyncStorage.setItem('savedRecipes', JSON.stringify(newSavedRecipes));
+
+      // Update recipe state
+      const updatedRecipes = recipes.map(recipe =>
+        recipe.id === recipeId
+          ? { ...recipe, isSaved: !recipe.isSaved }
+          : recipe
+      );
+      setRecipes(updatedRecipes);
+    } catch (error) {
+      console.error('Error updating saves:', error);
+      Alert.alert('Error', 'Failed to update save status');
+    }
+  };
+
+  const renderRecipe = ({ item }: { item: Recipe }) => (
+    <RecipeCard
+      recipe={item}
+      onLike={handleLike}
+      onSave={handleSave}
+    />
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputContainer}>
+          <Ionicons name="search" size={20} color={Colors.light.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search recipes..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={Colors.light.textMuted}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color={Colors.light.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Recipe Feed */}
+      <FlatList
+        data={filteredRecipes}
+        renderItem={renderRecipe}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContainer}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="restaurant-outline" size={64} color={Colors.light.textMuted} />
+            <Text style={styles.emptyText}>No recipes found</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your search</Text>
+          </View>
+        )}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.background,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.light.background,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.white,
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: Colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.light.text,
+  },
+  clearButton: {
+    marginLeft: 8,
+  },
+  listContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  separator: {
+    height: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: Colors.light.textMuted,
+    marginTop: 4,
+  },
+});
