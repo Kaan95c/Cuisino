@@ -21,6 +21,8 @@ import * as Haptics from 'expo-haptics';
 import { Recipe } from '../types';
 import { Colors } from '../constants/Colors';
 import ShimmerImage from './ShimmerImage';
+import { useTheme } from '../context/ThemeContext';
+import CommentSection from './CommentSection';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width;
@@ -45,6 +47,7 @@ function getCategoryFromRecipe(recipe: Recipe): string | null {
 }
 
 export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: RecipeCardProps) {
+  const { colors } = useTheme();
   const scale = useSharedValue(0);
   const opacity = useSharedValue(0);
   const likeScale = useSharedValue(1);
@@ -109,7 +112,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
   const category = getCategoryFromRecipe(recipe);
 
   return (
-    <Animated.View style={[styles.container, cardAnimatedStyle]}>
+    <Animated.View style={[styles.container, { backgroundColor: colors.surface, shadowColor: colors.shadow }, cardAnimatedStyle]}>
       {/* Header with author info */}
       <View style={styles.header}>
         <View style={styles.authorInfo}>
@@ -120,11 +123,11 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
             contentFit="cover"
           />
           <View style={styles.authorText}>
-            <Text style={styles.authorName}>{recipe.author.name}</Text>
+            <Text style={[styles.authorName, { color: colors.text }]}>{recipe.author.name}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color={Colors.light.textMuted} />
+          <Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -139,31 +142,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
         <Animated.View style={imageAnimatedStyle}>
           <ShimmerImage source={{ uri: recipe.image }} style={styles.recipeImage} contentFit="cover" />
         </Animated.View>
-        {/* Floating Save Button */}
-        <AnimatedTouchableOpacity 
-          onPress={handleSave}
-          style={[styles.floatingSave, saveAnimatedStyle]}
-          activeOpacity={0.8}
-        >
-          <Ionicons 
-            name={recipe.isSaved ? "bookmark" : "bookmark-outline"} 
-            size={20} 
-            color={Colors.light.white} 
-          />
-        </AnimatedTouchableOpacity>
-        {/* Likes pill */}
-        <AnimatedTouchableOpacity 
-          onPress={handleLike}
-          style={[styles.likesPill, likeAnimatedStyle]}
-          activeOpacity={0.8}
-        >
-          <Ionicons 
-            name={recipe.isLiked ? "heart" : "heart-outline"} 
-            size={14} 
-            color={recipe.isLiked ? Colors.light.like : Colors.light.white} 
-          />
-          <Text style={styles.likesPillText}>{recipe.likes}</Text>
-        </AnimatedTouchableOpacity>
+                 {/* Floating elements removed - only keep bottom action buttons */}
         {/* Category badge */}
         {category && (
           <View style={styles.categoryBadge}>
@@ -189,7 +168,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
             <Ionicons 
               name={recipe.isLiked ? "heart" : "heart-outline"} 
               size={24} 
-              color={recipe.isLiked ? Colors.light.like : Colors.light.text} 
+              color={recipe.isLiked ? colors.like : colors.text} 
             />
           </AnimatedTouchableOpacity>
           <TouchableOpacity 
@@ -197,14 +176,14 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
             style={styles.actionButton}
             activeOpacity={0.7}
           >
-            <Ionicons name="chatbubble-outline" size={22} color={Colors.light.text} />
+            <Ionicons name="chatbubble-outline" size={22} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={handlePress} 
             style={styles.actionButton}
             activeOpacity={0.7}
           >
-            <Ionicons name="paper-plane-outline" size={22} color={Colors.light.text} />
+            <Ionicons name="paper-plane-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
         <AnimatedTouchableOpacity 
@@ -215,7 +194,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
           <Ionicons 
             name={recipe.isSaved ? "bookmark" : "bookmark-outline"} 
             size={22} 
-            color={recipe.isSaved ? Colors.light.save : Colors.light.text} 
+            color={recipe.isSaved ? colors.save : colors.text} 
           />
         </AnimatedTouchableOpacity>
       </View>
@@ -223,37 +202,38 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
       {/* Content */}
       <View style={styles.content}>
         <TouchableOpacity onPress={handlePress} activeOpacity={0.9}>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
             {recipe.title}
           </Text>
-          <Text style={styles.description} numberOfLines={3}>
+          <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={3}>
             {recipe.description}
           </Text>
         </TouchableOpacity>
 
-        {/* Ingredients Preview */}
-        <View style={styles.ingredientsPreview}>
-          <Text style={styles.ingredientsLabel}>Ingrédients</Text>
-          <Text style={styles.ingredientsText} numberOfLines={2}>
-            {recipe.ingredients.slice(0, 3).join(', ')}
-            {recipe.ingredients.length > 3 && '...'}
-          </Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
+                 {/* Ingredients Preview */}
+         <View style={styles.ingredientsPreview}>
+           <Text style={[styles.ingredientsLabel, { color: colors.textSecondary }]}>Ingrédients</Text>
+           <Text style={[styles.ingredientsText, { color: colors.textMuted }]} numberOfLines={2}>
+             {recipe.ingredients.slice(0, 3).join(', ')}
+             {recipe.ingredients.length > 3 && '...'}
+           </Text>
+         </View>
+
+         {/* Comments Section */}
+         <CommentSection recipeId={recipe.id} />
+       </View>
+     </Animated.View>
+   );
+ }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.light.white,
     borderRadius: 16,
     marginBottom: 0,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
-    shadowColor: Colors.light.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -276,7 +256,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.light.surface,
   },
   authorText: {
     marginLeft: 12,
@@ -285,7 +264,6 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
   },
   moreButton: {
     padding: 4,
@@ -298,35 +276,7 @@ const styles = StyleSheet.create({
     height: CARD_WIDTH * 0.8,
     backgroundColor: Colors.light.surface,
   },
-  floatingSave: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  likesPill: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    paddingHorizontal: 10,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  likesPillText: {
-    marginLeft: 6,
-    fontSize: 12,
-    color: Colors.light.white,
-    fontWeight: '600',
-  },
+  // Floating elements removed
   categoryBadge: {
     position: 'absolute',
     top: 12,

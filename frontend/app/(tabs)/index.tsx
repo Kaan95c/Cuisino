@@ -25,66 +25,24 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
-import AdvancedSearch from '../../components/AdvancedSearch';
-import EnhancedCategoryChips from '../../components/EnhancedCategoryChips';
+import { useAuth } from '../../context/AuthContext';
+import { apiService } from '../../services/api';
 
 export default function HomeScreen() {
   const { t } = useLanguage();
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
-  const [likedRecipes, setLikedRecipes] = useState<string[]>([]);
-  const [savedRecipes, setSavedRecipes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const CATEGORIES: { key: string; label: string }[] = [
-    { key: 'all', label: t('chips_all') },
-    { key: 'dessert', label: t('chips_dessert') },
-    { key: 'breakfast', label: t('chips_breakfast') },
-    { key: 'italian', label: t('chips_italian') },
-    { key: 'vegan', label: t('chips_vegan') },
-    { key: 'drinks', label: t('chips_drinks') },
-    { key: 'fast', label: t('chips_fast') },
-  ];
+  // Supprimé les catégories fixes
 
   useEffect(() => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    // Filter recipes based on search query and category
-    const base = recipes.filter((recipe) => {
-      if (selectedCategory === 'all') return true;
-      const title = recipe.title.toLowerCase();
-      const ingredients = recipe.ingredients.join(' ').toLowerCase();
-      const cat = selectedCategory.toLowerCase();
-      const map: Record<string, string[]> = {
-        'dessert': ['cookie', 'cake', 'chocolate', 'sweet'],
-        'breakfast': ['toast', 'egg', 'breakfast'],
-        'italian': ['pasta', 'spaghetti', 'pizza', 'italian'],
-        'vegan': ['vegan', 'plant', 'tofu', 'almond'],
-        'drinks': ['smoothie', 'drink', 'juice'],
-        'fast': ['quick', 'toast', 'bowl'],
-      };
-      const keywords = map[cat] || [];
-      return keywords.some(k => title.includes(k) || ingredients.includes(k));
-    });
-
-    if (searchQuery.trim() === '') {
-      setFilteredRecipes(base);
-    } else {
-      const filtered = base.filter(recipe =>
-        recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        recipe.ingredients.some(ingredient =>
-          ingredient.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      );
-      setFilteredRecipes(filtered);
-    }
-  }, [searchQuery, recipes, selectedCategory]);
+  // Filtrage supprimé - remplacé par la page de recherche dédiée
 
   const loadData = async (showRefreshIndicator = false) => {
     try {
@@ -95,33 +53,20 @@ export default function HomeScreen() {
         setIsLoading(true);
       }
 
-      await new Promise(resolve => setTimeout(resolve, showRefreshIndicator ? 800 : 1500));
-
-      const liked = await AsyncStorage.getItem('likedRecipes');
-      const saved = await AsyncStorage.getItem('savedRecipes');
-      const userRecipesData = await AsyncStorage.getItem('userRecipes');
+      console.log('📡 Chargement des recettes depuis l\'API...');
+      // Charger les recettes depuis l'API backend
+      const apiRecipes = await apiService.getRecipes();
+      console.log('✅ Recettes chargées depuis l\'API:', apiRecipes.length);
       
-      const likedIds = liked ? JSON.parse(liked) : [];
-      const savedIds = saved ? JSON.parse(saved) : [];
-      const userRecipes = userRecipesData ? JSON.parse(userRecipesData) : [];
-      
-      setLikedRecipes(likedIds);
-      setSavedRecipes(savedIds);
+      // Combiner avec les recettes mockées pour l'instant
+      const allRecipes = [...apiRecipes, ...mockRecipes];
+      console.log('📊 Total des recettes:', allRecipes.length);
 
-      const allRecipes = [...userRecipes, ...mockRecipes];
-
-      const updatedRecipes = allRecipes.map(recipe => ({
-        ...recipe,
-        isLiked: likedIds.includes(recipe.id),
-        isSaved: savedIds.includes(recipe.id),
-      }));
-
-      setRecipes(updatedRecipes);
-      setFilteredRecipes(updatedRecipes);
+      setRecipes(allRecipes);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('❌ Erreur lors du chargement des données:', error);
+      // En cas d'erreur, utiliser les recettes mockées
       setRecipes(mockRecipes);
-      setFilteredRecipes(mockRecipes);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -136,32 +81,19 @@ export default function HomeScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      let newLikedRecipes;
-      if (likedRecipes.includes(recipeId)) {
-        newLikedRecipes = likedRecipes.filter(id => id !== recipeId);
-      } else {
-        newLikedRecipes = [...likedRecipes, recipeId];
-      }
-
-      setLikedRecipes(newLikedRecipes);
-      await AsyncStorage.setItem('likedRecipes', JSON.stringify(newLikedRecipes));
-
+      // Appeler l'API pour toggle le like
+      const updatedRecipe = await apiService.toggleLike(recipeId);
+      
+      // Mettre à jour les recettes locales
       const updatedRecipes = recipes.map(recipe =>
         recipe.id === recipeId
-          ? { ...recipe, isLiked: !recipe.isLiked }
+          ? { ...recipe, isLiked: updatedRecipe.isLiked, likes: updatedRecipe.likes }
           : recipe
       );
       setRecipes(updatedRecipes);
-      
-      const updatedFilteredRecipes = filteredRecipes.map(recipe =>
-        recipe.id === recipeId
-          ? { ...recipe, isLiked: !recipe.isLiked }
-          : recipe
-      );
-      setFilteredRecipes(updatedFilteredRecipes);
     } catch (error) {
       console.error('Error updating likes:', error);
-      Alert.alert(t('alert_error'), '');
+      Alert.alert(t('alert_error'), 'Erreur lors du like');
     }
   };
 
@@ -169,32 +101,19 @@ export default function HomeScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      let newSavedRecipes;
-      if (savedRecipes.includes(recipeId)) {
-        newSavedRecipes = savedRecipes.filter(id => id !== recipeId);
-      } else {
-        newSavedRecipes = [...savedRecipes, recipeId];
-      }
-
-      setSavedRecipes(newSavedRecipes);
-      await AsyncStorage.setItem('savedRecipes', JSON.stringify(newSavedRecipes));
-
+      // Appeler l'API pour toggle la sauvegarde
+      const updatedRecipe = await apiService.toggleSave(recipeId);
+      
+      // Mettre à jour les recettes locales
       const updatedRecipes = recipes.map(recipe =>
         recipe.id === recipeId
-          ? { ...recipe, isSaved: !recipe.isSaved }
+          ? { ...recipe, isSaved: updatedRecipe.isSaved }
           : recipe
       );
       setRecipes(updatedRecipes);
-      
-      const updatedFilteredRecipes = filteredRecipes.map(recipe =>
-        recipe.id === recipeId
-          ? { ...recipe, isSaved: !recipe.isSaved }
-          : recipe
-      );
-      setFilteredRecipes(updatedFilteredRecipes);
     } catch (error) {
       console.error('Error updating saves:', error);
-      Alert.alert(t('alert_error'), '');
+      Alert.alert(t('alert_error'), 'Erreur lors de la sauvegarde');
     }
   };
 
@@ -209,40 +128,12 @@ export default function HomeScreen() {
     />
   );
 
-  const HeaderHero = () => (
-    <View style={styles.heroContainer}>
-      <LinearGradient
-        colors={[Colors.light.background, Colors.light.background]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.heroGradient}
-      >
-        <View style={styles.heroTextBlockCentered}>
-          <Text style={styles.heroTitleCentered}>{t('home_hero_title')}</Text>
-        </View>
-        <TouchableOpacity style={styles.addFab} onPress={() => router.push('/(tabs)/add')} activeOpacity={0.9}>
-          <Ionicons name="add" size={22} color={Colors.light.white} />
-        </TouchableOpacity>
-      </LinearGradient>
-    </View>
-  );
+  // HeaderHero supprimé - seul le titre dans la navbar est conservé
 
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <HeaderHero />
-        <View style={styles.searchContainer}>
-          <AdvancedSearch
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSearch={(query) => setSearchQuery(query)}
-          />
-        </View>
-
-        <EnhancedCategoryChips
-          selectedCategory={selectedCategory}
-          onCategorySelect={setSelectedCategory}
-        />
+        {/* Bouton de recherche supprimé - remplacé par un onglet dans la navbar */}
 
         <View style={styles.listContainer}>
           {[0, 1, 2].map((index) => (
@@ -255,22 +146,10 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <HeaderHero />
-      <View style={styles.searchContainer}>
-        <AdvancedSearch
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSearch={(query) => setSearchQuery(query)}
-        />
-      </View>
+      {/* Bouton de recherche supprimé - remplacé par un onglet dans la navbar */}
 
-      <EnhancedCategoryChips
-        selectedCategory={selectedCategory}
-        onCategorySelect={setSelectedCategory}
-      />
-
-      <FlatList
-        data={filteredRecipes}
+              <FlatList
+        data={recipes}
         renderItem={renderRecipe}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
@@ -288,13 +167,9 @@ export default function HomeScreen() {
           <EmptyState
             icon="restaurant-outline"
             title={t('empty_no_recipes')}
-            subtitle={
-              searchQuery || selectedCategory !== 'all'
-                ? t('empty_hint_search')
-                : t('empty_hint_default')
-            }
-            actionText={!searchQuery && selectedCategory === 'all' ? t('profile_add_first') : undefined}
-            onAction={!searchQuery && selectedCategory === 'all' ? () => router.push('/(tabs)/add') : undefined}
+            subtitle={t('empty_hint_default')}
+            actionText={t('profile_add_first')}
+            onAction={() => router.push('/(tabs)/add')}
           />
         )}
       />
@@ -328,13 +203,8 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '800',
     color: Colors.light.text,
-    fontFamily: 'PlayfairDisplay_700Bold',
-    textAlign: 'center',
   },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
+  // Styles supprimés car plus utilisés
   listContainer: {
     paddingHorizontal: 0,
     paddingBottom: 0,

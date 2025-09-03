@@ -76,6 +76,25 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size, focused }) => (
             <AnimatedIcon name="home" size={size} color={color} focused={focused} />
           ),
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/messages')}
+              style={{ marginRight: 12, padding: 6 }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubbles-outline" size={22} color={theme.text} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: 'Recherche',
+          headerTitle: 'Recherche',
+          tabBarIcon: ({ color, size, focused }) => (
+            <AnimatedIcon name="search" size={size} color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen

@@ -21,16 +21,20 @@ import { Recipe } from '../../types';
 import { mockRecipes } from '../../data/mockData';
 import { BlurView } from 'expo-blur';
 import { useLanguage } from '../../context/LanguageContext';
+import { apiService } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 const HERO_BASE_HEIGHT = width * 0.78;
 
 export default function RecipeDetailScreen() {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -39,6 +43,24 @@ export default function RecipeDetailScreen() {
 
   const loadRecipe = async () => {
     try {
+      setIsLoading(true);
+      console.log('🔍 Chargement de la recette avec ID:', id);
+      
+      // Essayer de charger depuis l'API backend d'abord
+      try {
+        console.log('📡 Tentative de chargement depuis l\'API...');
+        const apiRecipe = await apiService.getRecipeById(id!);
+        console.log('✅ Recette trouvée dans l\'API:', apiRecipe.title);
+        setRecipe(apiRecipe);
+        setIsLiked(apiRecipe.isLiked || false);
+        setIsSaved(apiRecipe.isSaved || false);
+        return;
+      } catch (apiError) {
+        console.log('❌ Recette non trouvée dans l\'API:', apiError);
+        console.log('🔄 Tentative avec les données mockées...');
+      }
+      
+      // Si pas trouvé dans l'API, essayer les données mockées
       const userRecipesData = await AsyncStorage.getItem('userRecipes');
       const userRecipes = userRecipesData ? JSON.parse(userRecipesData) : [];
       const allRecipes = [...mockRecipes, ...userRecipes];
@@ -57,52 +79,75 @@ export default function RecipeDetailScreen() {
         setIsLiked(likedIds.includes(id));
         setIsSaved(savedIds.includes(id));
       } else {
-        Alert.alert(t('alert_error'), '', [
-          { text: t('alert_ok'), onPress: () => router.back() }
+        Alert.alert('Erreur', 'Recette non trouvée', [
+          { text: 'OK', onPress: () => router.back() }
         ]);
       }
     } catch (error) {
       console.error('Error loading recipe:', error);
-      Alert.alert(t('alert_error'), '');
+      Alert.alert('Erreur', 'Impossible de charger la recette');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleLike = async () => {
     try {
-      const likedRecipes = await AsyncStorage.getItem('likedRecipes');
-      let likedIds = likedRecipes ? JSON.parse(likedRecipes) : [];
+      // Appeler l'API pour toggle le like
+      const updatedRecipe = await apiService.toggleLike(id!);
       
-      if (isLiked) {
-        likedIds = likedIds.filter((recipeId: string) => recipeId !== id);
-      } else {
-        likedIds.push(id);
-      }
-      
-      await AsyncStorage.setItem('likedRecipes', JSON.stringify(likedIds));
-      setIsLiked(!isLiked);
+      setIsLiked(updatedRecipe.isLiked);
+      setRecipe(prev => prev ? { ...prev, likes: updatedRecipe.likes, isLiked: updatedRecipe.isLiked } : null);
     } catch (error) {
       console.error('Error updating like:', error);
-      Alert.alert(t('alert_error'), '');
+      Alert.alert('Erreur', 'Impossible de mettre à jour le like');
     }
   };
 
   const handleSave = async () => {
     try {
-      const savedRecipes = await AsyncStorage.getItem('savedRecipes');
-      let savedIds = savedRecipes ? JSON.parse(savedRecipes) : [];
+      // Appeler l'API pour toggle la sauvegarde
+      const updatedRecipe = await apiService.toggleSave(id!);
       
-      if (isSaved) {
-        savedIds = savedIds.filter((recipeId: string) => recipeId !== id);
-      } else {
-        savedIds.push(id);
-      }
-      
-      await AsyncStorage.setItem('savedRecipes', JSON.stringify(savedIds));
-      setIsSaved(!isSaved);
+      setIsSaved(updatedRecipe.isSaved);
+      setRecipe(prev => prev ? { ...prev, isSaved: updatedRecipe.isSaved } : null);
     } catch (error) {
       console.error('Error updating save:', error);
-      Alert.alert(t('alert_error'), '');
+      Alert.alert('Erreur', 'Impossible de mettre à jour la sauvegarde');
     }
+  };
+
+  const handleDelete = async () => {
+    if (!recipe || !user) return;
+    
+    // Vérifier que l'utilisateur est l'auteur
+    if (recipe.author.id !== user.id) {
+      Alert.alert('Erreur', 'Vous ne pouvez supprimer que vos propres recettes');
+      return;
+    }
+
+    Alert.alert(
+      'Supprimer la recette',
+      'Êtes-vous sûr de vouloir supprimer cette recette ? Cette action est irréversible.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.deleteRecipe(id!);
+              Alert.alert('Succès', 'Recette supprimée avec succès', [
+                { text: 'OK', onPress: () => router.back() }
+              ]);
+            } catch (error) {
+              console.error('Error deleting recipe:', error);
+              Alert.alert('Erreur', 'Impossible de supprimer la recette');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -117,11 +162,21 @@ export default function RecipeDetailScreen() {
     return `${Math.floor(diffInDays / 7)}${t('w')}`;
   };
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Chargement de la recette...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!recipe) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>{t('empty_hint_default')}</Text>
+          <Text style={styles.loadingText}>Recette non trouvée</Text>
         </View>
       </SafeAreaView>
     );
@@ -156,6 +211,11 @@ export default function RecipeDetailScreen() {
               <Ionicons name="chevron-back" size={22} color={Colors.light.white} />
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', gap: 10 }}>
+              {recipe && user && recipe.author.id === user.id && (
+                <TouchableOpacity style={[styles.topBtn, styles.deleteBtn]} onPress={handleDelete}>
+                  <Ionicons name="trash-outline" size={20} color="white" />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={styles.topBtn} onPress={handleLike}>
                 <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={20} color={isLiked ? Colors.light.like : Colors.light.white} />
               </TouchableOpacity>
@@ -303,6 +363,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  deleteBtn: {
+    backgroundColor: 'rgba(220, 38, 38, 0.8)',
   },
   titleOverlay: {
     position: 'absolute',

@@ -20,9 +20,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { Recipe } from '../../types';
-import { mockCurrentUser } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { apiService } from '../../services/api';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function AddRecipeScreen() {
+  const { user } = useAuth();
+  const { colors } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [ingredients, setIngredients] = useState(['']);
@@ -185,28 +189,25 @@ export default function AddRecipeScreen() {
         else if (res.uri) finalImage = res.uri;
       }
 
-      const newRecipe: Recipe = {
-        id: Date.now().toString(),
+      // Créer la recette via l'API backend
+      const recipeData = {
         title: title.trim(),
         description: description.trim(),
         ingredients: ingredients.filter(ing => ing.trim()),
         instructions: instructions.filter(inst => inst.trim()),
         image: finalImage,
-        author: mockCurrentUser,
-        likes: 0,
-        createdAt: new Date().toISOString(),
-        isLiked: false,
-        isSaved: false,
+        author: {
+          id: user!.id,
+          name: `${user!.firstName} ${user!.lastName}`,
+          avatar: user!.avatar || 'https://example.com/default-avatar.jpg'
+        },
         servings: servings ? Number(servings) : undefined,
         prepTimeMinutes: prepTime ? Number(prepTime) : undefined,
         difficulty: difficulty || undefined,
         tags: tags.length ? tags : undefined,
       };
 
-      const existingRecipes = await AsyncStorage.getItem('userRecipes');
-      const recipes = existingRecipes ? JSON.parse(existingRecipes) : [];
-      recipes.unshift(newRecipe);
-      await AsyncStorage.setItem('userRecipes', JSON.stringify(recipes));
+      const newRecipe = await apiService.createRecipe(recipeData);
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Success! 🎉', 'Your recipe has been published successfully!', [
@@ -237,22 +238,22 @@ export default function AddRecipeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Image Picker + Live Preview */}
-          <TouchableOpacity style={[styles.imagePicker, image && { borderStyle: 'solid', borderColor: Colors.light.border }]} onPress={pickImage} activeOpacity={0.9}>
+          <TouchableOpacity style={[styles.imagePicker, { backgroundColor: colors.surface, borderColor: colors.border }, image && { borderStyle: 'solid' }]} onPress={pickImage} activeOpacity={0.9}>
             {image ? (
-              <View style={[styles.previewWrapper, { aspectRatio: selectedRatio }] }>
+              <View style={[styles.previewWrapper, { aspectRatio: selectedRatio, backgroundColor: colors.surface }] }>
                 <Image source={{ uri: image }} style={styles.previewImage} contentFit="cover" />
               </View>
             ) : (
               <View style={styles.placeholderContainer}>
-                <Ionicons name="camera" size={40} color={Colors.light.textMuted} />
-                <Text style={styles.placeholderText}>Tap to add photo</Text>
+                <Ionicons name="camera" size={40} color={colors.textMuted} />
+                <Text style={[styles.placeholderText, { color: colors.textMuted }]}>Tap to add photo</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -260,8 +261,8 @@ export default function AddRecipeScreen() {
           {/* Aspect Ratio Selector */}
           <View style={styles.ratioRow}>
             {RATIO_OPTIONS.map(opt => (
-              <TouchableOpacity key={opt.key} onPress={() => setSelectedRatio(opt.value)} style={[styles.ratioPill, selectedRatio === opt.value && styles.ratioPillActive]}>
-                <Text style={[styles.ratioPillText, selectedRatio === opt.value && styles.ratioPillTextActive]}>{opt.label}</Text>
+              <TouchableOpacity key={opt.key} onPress={() => setSelectedRatio(opt.value)} style={[styles.ratioPill, { backgroundColor: colors.surface, borderColor: colors.border }, selectedRatio === opt.value && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                <Text style={[styles.ratioPillText, { color: colors.text }, selectedRatio === opt.value && { color: colors.white }]}>{opt.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -269,35 +270,35 @@ export default function AddRecipeScreen() {
           {/* Meta fields */}
           <View style={styles.metaRow}>
             <View style={styles.metaCol}>
-              <Text style={styles.metaLabel}>Time (min)</Text>
+              <Text style={[styles.metaLabel, { color: colors.text }]}>Time (min)</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 value={prepTime}
                 onChangeText={setPrepTime}
                 placeholder="Ex: 30"
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor={colors.textMuted}
                 keyboardType="numeric"
               />
             </View>
             <View style={styles.metaCol}>
-              <Text style={styles.metaLabel}>Servings</Text>
+              <Text style={[styles.metaLabel, { color: colors.text }]}>Servings</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 value={servings}
                 onChangeText={setServings}
                 placeholder="Ex: 4"
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor={colors.textMuted}
                 keyboardType="numeric"
               />
             </View>
           </View>
 
           <View style={styles.metaRow}>
-            <Text style={[styles.metaLabel, { marginBottom: 8 }]}>Difficulty</Text>
+            <Text style={[styles.metaLabel, { color: colors.text, marginBottom: 8 }]}>Difficulty</Text>
             <View style={styles.diffRow}>
               {(['easy','medium','hard'] as const).map(level => (
-                <TouchableOpacity key={level} onPress={() => setDifficulty(level)} style={[styles.diffPill, difficulty === level && styles.diffPillActive]}>
-                  <Text style={[styles.diffPillText, difficulty === level && styles.diffPillTextActive]}>
+                <TouchableOpacity key={level} onPress={() => setDifficulty(level)} style={[styles.diffPill, { backgroundColor: colors.surface, borderColor: colors.border }, difficulty === level && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                  <Text style={[styles.diffPillText, { color: colors.text }, difficulty === level && { color: colors.white }]}>
                     {level === 'easy' ? 'Easy' : level === 'medium' ? 'Medium' : 'Hard'}
                   </Text>
                 </TouchableOpacity>
@@ -307,56 +308,56 @@ export default function AddRecipeScreen() {
 
           {/* Title */}
           <View style={styles.section}>
-            <Text style={styles.label}>Recipe Title</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Recipe Title</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
               value={title}
               onChangeText={setTitle}
               placeholder="Enter recipe title..."
-              placeholderTextColor={Colors.light.textMuted}
+              placeholderTextColor={colors.textMuted}
               maxLength={80}
             />
-            <Text style={styles.helperText}>{title.length}/80</Text>
+            <Text style={[styles.helperText, { color: colors.textMuted }]}>{title.length}/80</Text>
           </View>
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={styles.label}>Description</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Description</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
               value={description}
               onChangeText={setDescription}
               placeholder="Describe your recipe..."
-              placeholderTextColor={Colors.light.textMuted}
+              placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
               maxLength={500}
             />
-            <Text style={styles.helperText}>{description.length}/500</Text>
+            <Text style={[styles.helperText, { color: colors.textMuted }]}>{description.length}/500</Text>
           </View>
 
           {/* Tags (preset + free) */}
           <View style={styles.section}>
-            <Text style={styles.label}>Tags</Text>
+            <Text style={[styles.label, { color: colors.text }]}>Tags</Text>
             <View style={styles.tagsRow}>
               {PRESET_TAGS.map(tag => (
-                <TouchableOpacity key={tag} onPress={() => addPresetTag(tag)} style={[styles.tagChip, tags.includes(tag) && styles.tagChipActive]}>
-                  <Text style={[styles.tagChipText, tags.includes(tag) && styles.tagChipTextActive]}>{tag}</Text>
+                <TouchableOpacity key={tag} onPress={() => addPresetTag(tag)} style={[styles.tagChip, { backgroundColor: colors.surface, borderColor: colors.border }, tags.includes(tag) && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                  <Text style={[styles.tagChipText, { color: colors.text }, tags.includes(tag) && { color: colors.white }]}>{tag}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={styles.tagInputRow}>
               <TextInput
-                style={[styles.input, styles.tagInput]}
+                style={[styles.input, styles.tagInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 value={tagInput}
                 onChangeText={setTagInput}
                 placeholder="Add a tag and press +"
-                placeholderTextColor={Colors.light.textMuted}
+                placeholderTextColor={colors.textMuted}
                 onSubmitEditing={addTagFromInput}
               />
               <TouchableOpacity style={styles.addTagBtn} onPress={addTagFromInput}>
-                <Ionicons name="add" size={20} color={Colors.light.white} />
+                <Ionicons name="add" size={20} color={colors.white} />
               </TouchableOpacity>
             </View>
             {tags.length > 0 && (
@@ -364,7 +365,7 @@ export default function AddRecipeScreen() {
                 {tags.map(tag => (
                   <TouchableOpacity key={tag} onPress={() => removeTag(tag)} style={styles.tagSelected}>
                     <Text style={styles.tagSelectedText}>{tag}</Text>
-                    <Ionicons name="close" size={14} color={Colors.light.white} />
+                    <Ionicons name="close" size={14} color={colors.white} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -374,26 +375,26 @@ export default function AddRecipeScreen() {
           {/* Ingredients */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.label}>Ingredients</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Ingredients</Text>
               <TouchableOpacity onPress={addIngredient} style={styles.addButton}>
-                <Ionicons name="add" size={20} color={Colors.light.primary} />
+                <Ionicons name="add" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
             {ingredients.map((ingredient, index) => (
               <View key={index} style={styles.listItem}>
                 <TextInput
-                  style={[styles.input, styles.listInput]}
+                  style={[styles.input, styles.listInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                   value={ingredient}
                   onChangeText={(value) => updateIngredient(index, value)}
                   placeholder={`Ingredient ${index + 1}...`}
-                  placeholderTextColor={Colors.light.textMuted}
+                  placeholderTextColor={colors.textMuted}
                 />
                 {ingredients.length > 1 && (
                   <TouchableOpacity
                     onPress={() => removeIngredient(index)}
                     style={styles.removeButton}
                   >
-                    <Ionicons name="close" size={20} color={Colors.light.error} />
+                    <Ionicons name="close" size={20} color={colors.error} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -403,20 +404,20 @@ export default function AddRecipeScreen() {
           {/* Instructions */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.label}>Instructions</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Instructions</Text>
               <TouchableOpacity onPress={addInstruction} style={styles.addButton}>
-                <Ionicons name="add" size={20} color={Colors.light.primary} />
+                <Ionicons name="add" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
             {instructions.map((instruction, index) => (
               <View key={index} style={styles.listItem}>
-                <Text style={styles.stepNumber}>{index + 1}.</Text>
+                <Text style={[styles.stepNumber, { color: colors.primary }]}>{index + 1}.</Text>
                 <TextInput
-                  style={[styles.input, styles.listInput, styles.instructionInput]}
+                  style={[styles.input, styles.listInput, styles.instructionInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                   value={instruction}
                   onChangeText={(value) => updateInstruction(index, value)}
                   placeholder={`Step ${index + 1}...`}
-                  placeholderTextColor={Colors.light.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   multiline
                 />
                 {instructions.length > 1 && (
@@ -424,7 +425,7 @@ export default function AddRecipeScreen() {
                     onPress={() => removeInstruction(index)}
                     style={styles.removeButton}
                   >
-                    <Ionicons name="close" size={20} color={Colors.light.error} />
+                    <Ionicons name="close" size={20} color={colors.error} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -433,7 +434,7 @@ export default function AddRecipeScreen() {
 
           {/* Publish Button */}
           <TouchableOpacity
-            style={[styles.publishButton, isLoading && styles.publishButtonDisabled]}
+            style={[styles.publishButton, { backgroundColor: colors.primary }, isLoading && styles.publishButtonDisabled]}
             onPress={handleSubmit}
             disabled={isLoading}
           >

@@ -9,18 +9,19 @@ import {
   Dimensions,
   FlatList,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import ShimmerImage from '../../components/ShimmerImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/Colors';
 import { Recipe } from '../../types';
-import { mockCurrentUser, mockRecipes } from '../../data/mockData';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
+import { apiService } from '../../services/api';
 import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
@@ -29,6 +30,7 @@ const GRID_ITEM_SIZE = (width - 48) / 3; // 3 columns with 16px padding on each 
 export default function ProfileScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { user, logout, refreshUser } = useAuth();
   const [userRecipes, setUserRecipes] = useState<Recipe[]>([]);
   const [likedRecipes, setLikedRecipes] = useState<Recipe[]>([]);
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
@@ -43,30 +45,45 @@ export default function ProfileScreen() {
 
   const loadUserData = async () => {
     try {
-      // Load user's own recipes
-      const userRecipesData = await AsyncStorage.getItem('userRecipes');
-      const userRecipesList = userRecipesData ? JSON.parse(userRecipesData) : [];
+      // Charger les recettes de l'utilisateur depuis l'API
+      const [userRecipesData, likedRecipesData, savedRecipesData] = await Promise.all([
+        apiService.getUserRecipes(),
+        apiService.getLikedRecipes(),
+        apiService.getSavedRecipes()
+      ]);
       
-      // Load liked and saved recipe IDs
-      const likedIds = await AsyncStorage.getItem('likedRecipes');
-      const savedIds = await AsyncStorage.getItem('savedRecipes');
-      
-      const likedIdsList = likedIds ? JSON.parse(likedIds) : [];
-      const savedIdsList = savedIds ? JSON.parse(savedIds) : [];
-
-      // Get all recipes (mock + user recipes)
-      const allRecipes = [...mockRecipes, ...userRecipesList];
-      
-      // Filter liked and saved recipes
-      const likedRecipesList = allRecipes.filter(recipe => likedIdsList.includes(recipe.id));
-      const savedRecipesList = allRecipes.filter(recipe => savedIdsList.includes(recipe.id));
-
-      setUserRecipes(userRecipesList);
-      setLikedRecipes(likedRecipesList);
-      setSavedRecipes(savedRecipesList);
+      setUserRecipes(userRecipesData);
+      setLikedRecipes(likedRecipesData);
+      setSavedRecipes(savedRecipesData);
     } catch (error) {
       console.error('Error loading user data:', error);
+      // En cas d'erreur, initialiser avec des tableaux vides
+      setUserRecipes([]);
+      setLikedRecipes([]);
+      setSavedRecipes([]);
     }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Déconnexion',
+      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Déconnexion',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/login');
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de se déconnecter');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const onRefresh = async () => {
@@ -127,13 +144,26 @@ export default function ProfileScreen() {
       >
         {/* Profile Header */}
         <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          {/* Logout Button */}
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="log-out-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
+
           <Image
-            source={{ uri: mockCurrentUser.avatar }}
+            source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80' }}
             style={styles.avatar}
             contentFit="cover"
           />
-          <Text style={[styles.name, { color: colors.text }]}>{mockCurrentUser.name}</Text>
-          <Text style={[styles.bio, { color: colors.textSecondary }]}>{mockCurrentUser.bio}</Text>
+          <Text style={[styles.name, { color: colors.text }]}>
+            {user ? `${user.firstName} ${user.lastName}` : 'Utilisateur'}
+          </Text>
+          <Text style={[styles.bio, { color: colors.textSecondary }]}>
+            {user?.bio || 'Aucune bio pour le moment'}
+          </Text>
           
           {/* Stats */}
           <View style={styles.stats}>
@@ -167,51 +197,54 @@ export default function ProfileScreen() {
         {/* Tab Navigation */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'recipes' && styles.activeTab]}
+            style={[styles.tab, { backgroundColor: colors.surface, borderColor: colors.border }, activeTab === 'recipes' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
             onPress={() => setActiveTab('recipes')}
           >
             <Ionicons
               name="restaurant"
               size={18}
-              color={activeTab === 'recipes' ? Colors.light.white : Colors.light.text}
+              color={activeTab === 'recipes' ? colors.white : colors.text}
             />
             <Text style={[
               styles.tabText,
-              activeTab === 'recipes' && styles.activeTabText
+              { color: colors.text },
+              activeTab === 'recipes' && { color: colors.white }
             ]}>
               Mes recettes
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'liked' && styles.activeTab]}
+            style={[styles.tab, { backgroundColor: colors.surface, borderColor: colors.border }, activeTab === 'liked' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
             onPress={() => setActiveTab('liked')}
           >
             <Ionicons
               name="heart"
               size={18}
-              color={activeTab === 'liked' ? Colors.light.white : Colors.light.text}
+              color={activeTab === 'liked' ? colors.white : colors.text}
             />
             <Text style={[
               styles.tabText,
-              activeTab === 'liked' && styles.activeTabText
+              { color: colors.text },
+              activeTab === 'liked' && { color: colors.white }
             ]}>
               Likées
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'saved' && styles.activeTab]}
+            style={[styles.tab, { backgroundColor: colors.surface, borderColor: colors.border }, activeTab === 'saved' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
             onPress={() => setActiveTab('saved')}
           >
             <Ionicons
               name="bookmark"
               size={18}
-              color={activeTab === 'saved' ? Colors.light.white : Colors.light.text}
+              color={activeTab === 'saved' ? colors.white : colors.text}
             />
             <Text style={[
               styles.tabText,
-              activeTab === 'saved' && styles.activeTabText
+              { color: colors.text },
+              activeTab === 'saved' && { color: colors.white }
             ]}>
               Enregistrées
             </Text>
@@ -228,15 +261,15 @@ export default function ProfileScreen() {
                   activeTab === 'liked' ? 'heart-outline' : 'bookmark-outline'
                 }
                 size={64}
-                color={Colors.light.textMuted}
+                color={colors.textMuted}
               />
-              <Text style={styles.emptyText}>{getEmptyMessage()}</Text>
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>{getEmptyMessage()}</Text>
               {activeTab === 'recipes' && (
                 <TouchableOpacity
-                  style={styles.addRecipeButton}
+                  style={[styles.addRecipeButton, { backgroundColor: colors.primary }]}
                   onPress={() => router.push('/(tabs)/add')}
                 >
-                  <Text style={styles.addRecipeButtonText}>Ajouter ma première recette</Text>
+                  <Text style={[styles.addRecipeButtonText, { color: colors.white }]}>Ajouter ma première recette</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -272,7 +305,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     position: 'relative',
   },
-  settingsButton: {
+  logoutButton: {
     position: 'absolute',
     top: 20,
     right: 16,

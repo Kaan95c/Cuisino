@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,14 +16,30 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
-import { mockCurrentUser } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
 
 export default function EditProfileScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
-  const [name, setName] = useState(mockCurrentUser.name);
-  const [bio, setBio] = useState(mockCurrentUser.bio);
-  const [avatar, setAvatar] = useState(mockCurrentUser.avatar);
+  const { user, updateUser } = useAuth();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [bio, setBio] = useState('');
+  const [phone, setPhone] = useState('');
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName);
+      setLastName(user.lastName);
+      setUsername(user.username);
+      setBio(user.bio || '');
+      setPhone(user.phone);
+      setAvatar(user.avatar || null);
+    }
+  }, [user]);
 
   const handleBack = () => {
     Haptics.selectionAsync();
@@ -32,12 +48,24 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     try {
+      setIsLoading(true);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      // Here you would save the profile data
+      
+      await updateUser({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        username: username.trim(),
+        bio: bio.trim() || undefined,
+        phone: phone.trim(),
+        avatar: avatar || undefined,
+      });
+      
       Alert.alert('Succès', 'Profil mis à jour avec succès !');
       router.back();
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de sauvegarder le profil');
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le profil');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -68,8 +96,14 @@ export default function EditProfileScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Éditer le profil</Text>
-        <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-          <Text style={[styles.saveButtonText, { color: colors.primary }]}>Enregistrer</Text>
+        <TouchableOpacity 
+          onPress={handleSave} 
+          style={styles.saveButton}
+          disabled={isLoading}
+        >
+          <Text style={[styles.saveButtonText, { color: colors.primary }]}>
+            {isLoading ? 'Enregistrement...' : 'Enregistrer'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -77,7 +111,13 @@ export default function EditProfileScreen() {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
-            <Image source={{ uri: avatar }} style={styles.avatar} />
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: colors.surface }]}>
+                <Ionicons name="person" size={40} color={colors.textMuted} />
+              </View>
+            )}
             <TouchableOpacity 
               style={[styles.changeAvatarButton, { backgroundColor: colors.primary }]}
               onPress={handleChangeAvatar}
@@ -93,6 +133,36 @@ export default function EditProfileScreen() {
         {/* Form Fields */}
         <View style={styles.formSection}>
           <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Prénom</Text>
+            <TextInput
+              style={[styles.textInput, { 
+                backgroundColor: colors.surface, 
+                borderColor: colors.border,
+                color: colors.text 
+              }]}
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="Votre prénom"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Nom</Text>
+            <TextInput
+              style={[styles.textInput, { 
+                backgroundColor: colors.surface, 
+                borderColor: colors.border,
+                color: colors.text 
+              }]}
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="Votre nom"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Nom d'utilisateur</Text>
             <TextInput
               style={[styles.textInput, { 
@@ -100,10 +170,27 @@ export default function EditProfileScreen() {
                 borderColor: colors.border,
                 color: colors.text 
               }]}
-              value={name}
-              onChangeText={setName}
+              value={username}
+              onChangeText={setUsername}
               placeholder="Votre nom d'utilisateur"
               placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Téléphone</Text>
+            <TextInput
+              style={[styles.textInput, { 
+                backgroundColor: colors.surface, 
+                borderColor: colors.border,
+                color: colors.text 
+              }]}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="+33 6 12 34 56 78"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="phone-pad"
             />
           </View>
 
@@ -208,6 +295,13 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     backgroundColor: '#f0f0f0',
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   changeAvatarButton: {
     position: 'absolute',
