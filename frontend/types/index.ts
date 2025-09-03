@@ -15,6 +15,10 @@ export interface Recipe {
   isLiked: boolean;
   isSaved: boolean;
   category?: string; // meal category (breakfast, lunch, dinner, snack, dessert, drink)
+  servings?: number; // number of servings
+  prepTimeMinutes?: number; // preparation time in minutes
+  difficulty?: 'easy' | 'medium' | 'hard';
+  tags?: string[]; // list of tags
 }
 
 export interface User {

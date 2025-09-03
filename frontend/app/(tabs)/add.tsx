@@ -14,57 +14,62 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { Recipe } from '../../types';
 import { mockCurrentUser } from '../../data/mockData';
-import { useTheme } from '../../context/ThemeContext';
-import { useLanguage } from '../../context/LanguageContext';
 
 export default function AddRecipeScreen() {
-  const { colors } = useTheme();
-  const { t } = useLanguage();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [ingredients, setIngredients] = useState(['']);
   const [instructions, setInstructions] = useState(['']);
   const [image, setImage] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [imageDim, setImageDim] = useState<{ width: number; height: number } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const mealCategories = [
-    { key: 'breakfast', label: 'Petit-déjeuner', icon: 'sunny', color: '#FFB84D' },
-    { key: 'lunch', label: 'Déjeuner', icon: 'restaurant', color: '#4ECDC4' },
-    { key: 'dinner', label: 'Dîner', icon: 'moon', color: '#7C5CFC' },
-    { key: 'snack', label: 'Goûter', icon: 'cafe', color: '#FF6B9D' },
-    { key: 'dessert', label: 'Dessert', icon: 'ice-cream', color: '#96CEB4' },
-    { key: 'drink', label: 'Boisson', icon: 'wine', color: '#45B7D1' },
+  // Nouveaux champs
+  const [servings, setServings] = useState<string>('');
+  const [prepTime, setPrepTime] = useState<string>('');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard' | null>(null);
+  const PRESET_TAGS = ['Vegan', 'Italien', 'Dessert', 'Rapide', 'Sans gluten', 'Healthy', 'Boisson'];
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+
+  const RATIO_OPTIONS: { key: string; label: string; value: number }[] = [
+    { key: '1:1', label: '1:1', value: 1 },
+    { key: '4:5', label: '4:5', value: 4 / 5 },
+    { key: '5:7', label: '5:7', value: 5 / 7 },
+    { key: '3:4', label: '3:4', value: 3 / 4 },
+    { key: '3:5', label: '3:5', value: 3 / 5 },
+    { key: '2:3', label: '2:3', value: 2 / 3 },
   ];
+  const [selectedRatio, setSelectedRatio] = useState<number>(1);
 
   const pickImage = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
       return;
     }
 
-    // Launch image picker
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
+      allowsEditing: false,
+      quality: 0.95,
       base64: true,
     });
 
-    if (!result.canceled && result.assets[0].base64) {
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      setImage(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
+      if (asset.width && asset.height) setImageDim({ width: asset.width, height: asset.height });
     }
   };
 
@@ -104,32 +109,53 @@ export default function AddRecipeScreen() {
 
   const validateForm = () => {
     if (!title.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer un titre pour votre recette');
+      Alert.alert('Error', 'Please enter a recipe title');
       return false;
     }
     if (!description.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer une description pour votre recette');
+      Alert.alert('Error', 'Please enter a recipe description');
       return false;
     }
     if (!image) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une image pour votre recette');
-      return false;
-    }
-    if (!selectedCategory) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une catégorie de repas');
+      Alert.alert('Error', 'Please select an image for your recipe');
       return false;
     }
     const validIngredients = ingredients.filter(ing => ing.trim());
     if (validIngredients.length === 0) {
-      Alert.alert('Erreur', 'Veuillez ajouter au moins un ingrédient');
+      Alert.alert('Error', 'Please add at least one ingredient');
       return false;
     }
     const validInstructions = instructions.filter(inst => inst.trim());
     if (validInstructions.length === 0) {
-      Alert.alert('Erreur', 'Veuillez ajouter au moins une instruction');
+      Alert.alert('Error', 'Please add at least one instruction');
       return false;
     }
     return true;
+  };
+
+  const cropToRatio = (w: number, h: number, aspect: number) => {
+    const targetW = Math.min(w, Math.floor(h * aspect));
+    const targetH = Math.min(h, Math.floor(w / aspect));
+    const cropW = Math.floor(Math.min(w, targetW));
+    const cropH = Math.floor(Math.min(h, targetH));
+    const originX = Math.floor((w - cropW) / 2);
+    const originY = Math.floor((h - cropH) / 2);
+    return { originX, originY, cropW, cropH };
+  };
+
+  const addPresetTag = (tag: string) => {
+    if (!tags.includes(tag)) setTags([...tags, tag]);
+  };
+
+  const addTagFromInput = () => {
+    const v = tagInput.trim();
+    if (!v) return;
+    if (!tags.includes(v)) setTags([...tags, v]);
+    setTagInput('');
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter(t => t !== tag));
   };
 
   const handleSubmit = async () => {
@@ -137,53 +163,71 @@ export default function AddRecipeScreen() {
 
     setIsLoading(true);
     try {
-      // Create new recipe
+      let finalImage = image!;
+
+      if (image && imageDim) {
+        const { width, height } = imageDim;
+        const { originX, originY, cropW, cropH } = cropToRatio(width, height, selectedRatio);
+        const actions: ImageManipulator.Action[] = [
+          { crop: { originX, originY, width: cropW, height: cropH } },
+        ];
+        const LONG_EDGE = 1440;
+        const targetW = cropW >= cropH ? LONG_EDGE : Math.round(LONG_EDGE * (cropW / cropH));
+        const targetH = cropH > cropW ? LONG_EDGE : Math.round(LONG_EDGE * (cropH / cropW));
+        actions.push({ resize: { width: targetW, height: targetH } });
+
+        const res = await ImageManipulator.manipulateAsync(
+          (image.startsWith('data:') ? undefined : image) || image,
+          actions,
+          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+        if (res.base64) finalImage = `data:image/jpeg;base64,${res.base64}`;
+        else if (res.uri) finalImage = res.uri;
+      }
+
       const newRecipe: Recipe = {
         id: Date.now().toString(),
         title: title.trim(),
         description: description.trim(),
         ingredients: ingredients.filter(ing => ing.trim()),
         instructions: instructions.filter(inst => inst.trim()),
-        image: image!,
+        image: finalImage,
         author: mockCurrentUser,
         likes: 0,
         createdAt: new Date().toISOString(),
         isLiked: false,
         isSaved: false,
-        category: selectedCategory,
+        servings: servings ? Number(servings) : undefined,
+        prepTimeMinutes: prepTime ? Number(prepTime) : undefined,
+        difficulty: difficulty || undefined,
+        tags: tags.length ? tags : undefined,
       };
 
-      // Get existing recipes
       const existingRecipes = await AsyncStorage.getItem('userRecipes');
       const recipes = existingRecipes ? JSON.parse(existingRecipes) : [];
-      
-      // Add new recipe
       recipes.unshift(newRecipe);
       await AsyncStorage.setItem('userRecipes', JSON.stringify(recipes));
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      Alert.alert(
-        'Succès ! 🎉',
-        'Votre recette a été publiée avec succès !',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Reset form
-              setTitle('');
-              setDescription('');
-              setIngredients(['']);
-              setInstructions(['']);
-              setImage(null);
-              setSelectedCategory('');
-              
-              // Navigate to home
-              router.push('/(tabs)/');
-            },
+      Alert.alert('Success! 🎉', 'Your recipe has been published successfully!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            setTitle('');
+            setDescription('');
+            setIngredients(['']);
+            setInstructions(['']);
+            setImage(null);
+            setImageDim(null);
+            setServings('');
+            setPrepTime('');
+            setDifficulty(null);
+            setTags([]);
+            setTagInput('');
+            router.push('/(tabs)/');
           },
-        ]
-      );
+        },
+      ]);
     } catch (error) {
       console.error('Error saving recipe:', error);
       Alert.alert('Error', 'Failed to save recipe. Please try again.');
@@ -193,16 +237,18 @@ export default function AddRecipeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Image Picker */}
-          <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+          {/* Image Picker + Live Preview */}
+          <TouchableOpacity style={[styles.imagePicker, image && { borderStyle: 'solid', borderColor: Colors.light.border }]} onPress={pickImage} activeOpacity={0.9}>
             {image ? (
-              <Image source={{ uri: image }} style={styles.selectedImage} contentFit="cover" />
+              <View style={[styles.previewWrapper, { aspectRatio: selectedRatio }] }>
+                <Image source={{ uri: image }} style={styles.previewImage} contentFit="cover" />
+              </View>
             ) : (
               <View style={styles.placeholderContainer}>
                 <Ionicons name="camera" size={40} color={Colors.light.textMuted} />
@@ -211,81 +257,118 @@ export default function AddRecipeScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Title */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>Titre de la recette</Text>
-            <TextInput
-              style={[styles.input, { 
-                backgroundColor: colors.surface, 
-                borderColor: colors.border,
-                color: colors.text 
-              }]}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Entrez le titre de votre recette..."
-              placeholderTextColor={colors.textMuted}
-            />
+          {/* Aspect Ratio Selector */}
+          <View style={styles.ratioRow}>
+            {RATIO_OPTIONS.map(opt => (
+              <TouchableOpacity key={opt.key} onPress={() => setSelectedRatio(opt.value)} style={[styles.ratioPill, selectedRatio === opt.value && styles.ratioPillActive]}>
+                <Text style={[styles.ratioPillText, selectedRatio === opt.value && styles.ratioPillTextActive]}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
-          {/* Description */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.textArea, { 
-                backgroundColor: colors.surface, 
-                borderColor: colors.border,
-                color: colors.text 
-              }]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Décrivez votre recette..."
-              placeholderTextColor={colors.textMuted}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
+          {/* Meta fields */}
+          <View style={styles.metaRow}>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Time (min)</Text>
+              <TextInput
+                style={styles.input}
+                value={prepTime}
+                onChangeText={setPrepTime}
+                placeholder="Ex: 30"
+                placeholderTextColor={Colors.light.textMuted}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Servings</Text>
+              <TextInput
+                style={styles.input}
+                value={servings}
+                onChangeText={setServings}
+                placeholder="Ex: 4"
+                placeholderTextColor={Colors.light.textMuted}
+                keyboardType="numeric"
+              />
+            </View>
           </View>
 
-          {/* Meal Category */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>Type de repas</Text>
-            <View style={styles.categoryGrid}>
-              {mealCategories.map((category) => (
-                <TouchableOpacity
-                  key={category.key}
-                  style={[
-                    styles.categoryChip,
-                    {
-                      backgroundColor: selectedCategory === category.key 
-                        ? category.color 
-                        : colors.surface,
-                      borderColor: selectedCategory === category.key 
-                        ? category.color 
-                        : colors.border,
-                    }
-                  ]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setSelectedCategory(category.key);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name={category.icon as any}
-                    size={20}
-                    color={selectedCategory === category.key ? colors.white : category.color}
-                  />
-                  <Text style={[
-                    styles.categoryText,
-                    {
-                      color: selectedCategory === category.key ? colors.white : colors.text
-                    }
-                  ]}>
-                    {category.label}
+          <View style={styles.metaRow}>
+            <Text style={[styles.metaLabel, { marginBottom: 8 }]}>Difficulty</Text>
+            <View style={styles.diffRow}>
+              {(['easy','medium','hard'] as const).map(level => (
+                <TouchableOpacity key={level} onPress={() => setDifficulty(level)} style={[styles.diffPill, difficulty === level && styles.diffPillActive]}>
+                  <Text style={[styles.diffPillText, difficulty === level && styles.diffPillTextActive]}>
+                    {level === 'easy' ? 'Easy' : level === 'medium' ? 'Medium' : 'Hard'}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          {/* Title */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Recipe Title</Text>
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Enter recipe title..."
+              placeholderTextColor={Colors.light.textMuted}
+              maxLength={80}
+            />
+            <Text style={styles.helperText}>{title.length}/80</Text>
+          </View>
+
+          {/* Description */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe your recipe..."
+              placeholderTextColor={Colors.light.textMuted}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={500}
+            />
+            <Text style={styles.helperText}>{description.length}/500</Text>
+          </View>
+
+          {/* Tags (preset + free) */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Tags</Text>
+            <View style={styles.tagsRow}>
+              {PRESET_TAGS.map(tag => (
+                <TouchableOpacity key={tag} onPress={() => addPresetTag(tag)} style={[styles.tagChip, tags.includes(tag) && styles.tagChipActive]}>
+                  <Text style={[styles.tagChipText, tags.includes(tag) && styles.tagChipTextActive]}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.tagInputRow}>
+              <TextInput
+                style={[styles.input, styles.tagInput]}
+                value={tagInput}
+                onChangeText={setTagInput}
+                placeholder="Add a tag and press +"
+                placeholderTextColor={Colors.light.textMuted}
+                onSubmitEditing={addTagFromInput}
+              />
+              <TouchableOpacity style={styles.addTagBtn} onPress={addTagFromInput}>
+                <Ionicons name="add" size={20} color={Colors.light.white} />
+              </TouchableOpacity>
+            </View>
+            {tags.length > 0 && (
+              <View style={styles.tagsSelectedRow}>
+                {tags.map(tag => (
+                  <TouchableOpacity key={tag} onPress={() => removeTag(tag)} style={styles.tagSelected}>
+                    <Text style={styles.tagSelectedText}>{tag}</Text>
+                    <Ionicons name="close" size={14} color={Colors.light.white} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Ingredients */}
@@ -377,7 +460,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   imagePicker: {
-    height: 200,
     backgroundColor: Colors.light.surface,
     borderRadius: 12,
     marginVertical: 16,
@@ -386,12 +468,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
     borderStyle: 'dashed',
   },
-  selectedImage: {
+  previewWrapper: {
+    width: '100%',
+    backgroundColor: Colors.light.surface,
+  },
+  previewImage: {
     width: '100%',
     height: '100%',
   },
   placeholderContainer: {
-    flex: 1,
+    height: 200,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -399,6 +485,70 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 16,
     color: Colors.light.textMuted,
+  },
+  ratioRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  ratioPill: {
+    backgroundColor: Colors.light.white,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  ratioPillActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  ratioPillText: {
+    fontSize: 13,
+    color: Colors.light.text,
+    fontWeight: '600',
+  },
+  ratioPillTextActive: {
+    color: Colors.light.white,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  metaCol: {
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 6,
+  },
+  diffRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  diffPill: {
+    backgroundColor: Colors.light.white,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  diffPillActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  diffPillText: {
+    fontSize: 13,
+    color: Colors.light.text,
+    fontWeight: '600',
+  },
+  diffPillTextActive: {
+    color: Colors.light.white,
   },
   section: {
     marginBottom: 24,
@@ -412,40 +562,25 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 18,
     fontWeight: '600',
+    color: Colors.light.text,
     marginBottom: 8,
   },
   input: {
+    backgroundColor: Colors.light.white,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
+    color: Colors.light.text,
     borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 2,
-    minWidth: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 8,
+  helperText: {
+    fontSize: 12,
+    color: Colors.light.textMuted,
+    marginTop: 6,
   },
   textArea: {
-    height: 100,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
   listItem: {
@@ -477,6 +612,68 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     marginTop: 8,
   },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tagChip: {
+    backgroundColor: Colors.light.white,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  tagChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  tagChipText: {
+    fontSize: 13,
+    color: Colors.light.text,
+    fontWeight: '600',
+  },
+  tagChipTextActive: {
+    color: Colors.light.white,
+  },
+  tagInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 8,
+  },
+  tagInput: {
+    flex: 1,
+  },
+  addTagBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagsSelectedRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  tagSelected: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  tagSelectedText: {
+    color: Colors.light.white,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   publishButton: {
     backgroundColor: Colors.light.primary,
     borderRadius: 12,
@@ -490,10 +687,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   publishButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   publishButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: Colors.light.white,
   },

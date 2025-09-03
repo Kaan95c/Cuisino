@@ -23,7 +23,7 @@ import { Colors } from '../constants/Colors';
 import ShimmerImage from './ShimmerImage';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = width - 32;
+const CARD_WIDTH = width;
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -248,7 +248,11 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.light.white,
     borderRadius: 16,
-    marginBottom: 16,
+    marginBottom: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     shadowColor: Colors.light.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

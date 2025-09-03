@@ -127,18 +127,6 @@ export default function ProfileScreen() {
       >
         {/* Profile Header */}
         <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          {/* Settings Button */}
-          <TouchableOpacity 
-            style={[styles.settingsButton, { backgroundColor: colors.surfaceSecondary }]}
-            onPress={() => {
-              Haptics.selectionAsync();
-              router.push('/settings');
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="settings-outline" size={20} color={colors.text} />
-          </TouchableOpacity>
-
           <Image
             source={{ uri: mockCurrentUser.avatar }}
             style={styles.avatar}

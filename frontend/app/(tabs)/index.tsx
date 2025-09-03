@@ -211,9 +211,19 @@ export default function HomeScreen() {
 
   const HeaderHero = () => (
     <View style={styles.heroContainer}>
-      <View style={[styles.heroGradient, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.heroTitle, { color: colors.text }]}>Cuisino</Text>
-      </View>
+      <LinearGradient
+        colors={[Colors.light.background, Colors.light.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.heroGradient}
+      >
+        <View style={styles.heroTextBlockCentered}>
+          <Text style={styles.heroTitleCentered}>{t('home_hero_title')}</Text>
+        </View>
+        <TouchableOpacity style={styles.addFab} onPress={() => router.push('/(tabs)/add')} activeOpacity={0.9}>
+          <Ionicons name="add" size={22} color={Colors.light.white} />
+        </TouchableOpacity>
+      </LinearGradient>
     </View>
   );
 
@@ -265,14 +275,13 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-
+        ItemSeparatorComponent={undefined}
         refreshControl={
           <RefreshControl 
             refreshing={isRefreshing} 
             onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
+            tintColor={Colors.light.primary}
+            colors={[Colors.light.primary]}
           />
         }
         ListEmptyComponent={() => (
@@ -303,14 +312,22 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   heroGradient: {
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroTextBlockCentered: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroTitle: {
-    fontSize: 32,
+  heroTitleCentered: {
+    fontSize: 30,
     fontWeight: '800',
+    color: Colors.light.text,
     fontFamily: 'PlayfairDisplay_700Bold',
     textAlign: 'center',
   },
@@ -319,10 +336,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
   },
   separator: {
-    height: 16,
+    height: 0,
   },
 });

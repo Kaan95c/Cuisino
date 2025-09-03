@@ -196,15 +196,32 @@ export default function RecipeDetailScreen() {
           </View>
 
           <View style={styles.statsSection}>
-            <View style={styles.statItem}>
-              <Ionicons name="time" size={16} color={Colors.light.textMuted} />
-              <Text style={styles.statText}>{`30 ${t('minutes')}`}</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Ionicons name="people" size={16} color={Colors.light.textMuted} />
-              <Text style={styles.statText}>{`4 ${t('servings')}`}</Text>
-            </View>
+            {typeof recipe.prepTimeMinutes === 'number' && (
+              <View style={styles.statItem}>
+                <Ionicons name="time" size={16} color={Colors.light.textMuted} />
+                <Text style={styles.statText}>{`${recipe.prepTimeMinutes} ${t('minutes')}`}</Text>
+              </View>
+            )}
+            {typeof recipe.servings === 'number' && (
+              <View style={styles.statItem}>
+                <Ionicons name="people" size={16} color={Colors.light.textMuted} />
+                <Text style={styles.statText}>{`${recipe.servings} ${t('servings')}`}</Text>
+              </View>
+            )}
           </View>
+
+          {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Tags</Text>
+              <View style={styles.tagsRow}>
+                {recipe.tags.map((tag) => (
+                  <View key={tag} style={styles.tagChip}>
+                    <Text style={styles.tagChipText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('ingredients')}</Text>
@@ -385,6 +402,24 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 13,
     color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tagChip: {
+    backgroundColor: Colors.light.surface,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  tagChipText: {
+    fontSize: 12,
+    color: Colors.light.text,
     fontWeight: '600',
   },
   ingredientsList: {
