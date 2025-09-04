@@ -53,6 +53,11 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
   const likeScale = useSharedValue(1);
   const saveScale = useSharedValue(1);
   const imageScale = useSharedValue(1);
+  const heartScale = useSharedValue(0);
+  const heartOpacity = useSharedValue(0);
+
+  // Double tap detection
+  const lastTap = useSharedValue(0);
 
   useEffect(() => {
     // Entrance animation with staggered delay
@@ -102,12 +107,43 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
   };
 
   const handleSave = async () => {
-    await Haptics.impactAsync(Haptics.NotificationFeedbackType.Success);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     saveScale.value = withSpring(1.2, { duration: 200 }, () => {
       saveScale.value = withSpring(1, { duration: 200 });
     });
     onSave(recipe.id);
   };
+
+  // Double tap animation for heart
+  const heartAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heartScale.value }],
+    opacity: heartOpacity.value,
+  }));
+
+  // Handle double tap on image
+  const handleImageDoubleTap = () => {
+    'worklet';
+    const now = Date.now();
+    if (now - lastTap.value < 300) {
+      // Double tap detected
+      heartScale.value = withSpring(1.5, { duration: 300 }, () => {
+        heartScale.value = withSpring(0, { duration: 300 });
+      });
+      heartOpacity.value = withTiming(1, { duration: 150 }, () => {
+        heartOpacity.value = withTiming(0, { duration: 300 });
+      });
+      
+      runOnJS(triggerLike)();
+    }
+    lastTap.value = now;
+  };
+
+  const triggerLike = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    onLike(recipe.id);
+  };
+
+  // Reactions supprimées - utilisation des likes uniquement
 
   const category = getCategoryFromRecipe(recipe);
 
@@ -133,7 +169,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
 
       {/* Recipe Image with overlay */}
       <AnimatedTouchableOpacity 
-        onPress={handlePress}
+        onPress={handleImageDoubleTap}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={0.95}
@@ -141,6 +177,11 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
       >
         <Animated.View style={imageAnimatedStyle}>
           <ShimmerImage source={{ uri: recipe.image }} style={styles.recipeImage} contentFit="cover" />
+        </Animated.View>
+        
+        {/* Double tap heart animation */}
+        <Animated.View style={[styles.heartAnimation, heartAnimatedStyle]}>
+          <Ionicons name="heart" size={80} color="white" />
         </Animated.View>
                  {/* Floating elements removed - only keep bottom action buttons */}
         {/* Category badge */}
@@ -156,6 +197,7 @@ export default function RecipeCard({ recipe, onLike, onSave, index = 0 }: Recipe
           </Text>
         </View>
       </AnimatedTouchableOpacity>
+
 
       {/* Action Buttons */}
       <View style={styles.actions}>
@@ -355,5 +397,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.textSecondary,
     lineHeight: 18,
+  },
+  heartAnimation: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginTop: -40,
+    marginLeft: -40,
+    zIndex: 10,
   },
 });

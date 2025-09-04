@@ -35,6 +35,9 @@ export default function HomeScreen() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreData, setHasMoreData] = useState(true);
 
   // Supprimé les catégories fixes
 
@@ -44,37 +47,58 @@ export default function HomeScreen() {
 
   // Filtrage supprimé - remplacé par la page de recherche dédiée
 
-  const loadData = async (showRefreshIndicator = false) => {
+  const loadData = async (showRefreshIndicator = false, page = 1) => {
     try {
       if (showRefreshIndicator) {
         setIsRefreshing(true);
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } else {
+      } else if (page === 1) {
         setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
       }
 
-      console.log('📡 Chargement des recettes depuis l\'API...');
-      // Charger les recettes depuis l'API backend
-      const apiRecipes = await apiService.getRecipes();
-      console.log('✅ Recettes chargées depuis l\'API:', apiRecipes.length);
+      console.log(`📡 Chargement des recettes page ${page}...`);
+      const apiRecipes = await apiService.getRecipes(page, 10);
+      console.log('✅ Recettes chargées:', apiRecipes.length);
       
-      // Combiner avec les recettes mockées pour l'instant
-      const allRecipes = [...apiRecipes, ...mockRecipes];
-      console.log('📊 Total des recettes:', allRecipes.length);
-
-      setRecipes(allRecipes);
+      if (page === 1) {
+        // Première page ou refresh
+        const allRecipes = [...apiRecipes, ...mockRecipes];
+        setRecipes(allRecipes);
+        setCurrentPage(1);
+      } else {
+        // Pages suivantes - ajouter à la liste existante
+        setRecipes(prev => [...prev, ...apiRecipes]);
+      }
+      
+      // Vérifier s'il y a plus de données
+      setHasMoreData(apiRecipes.length === 10);
+      
     } catch (error) {
-      console.error('❌ Erreur lors du chargement des données:', error);
-      // En cas d'erreur, utiliser les recettes mockées
-      setRecipes(mockRecipes);
+      console.error('❌ Erreur lors du chargement:', error);
+      if (page === 1) {
+        setRecipes(mockRecipes);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsLoadingMore(false);
     }
   };
 
   const onRefresh = () => {
-    loadData(true);
+    setCurrentPage(1);
+    setHasMoreData(true);
+    loadData(true, 1);
+  };
+
+  const loadMoreData = () => {
+    if (!isLoadingMore && hasMoreData) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      loadData(false, nextPage);
+    }
   };
 
   const handleLike = async (recipeId: string) => {
@@ -96,6 +120,8 @@ export default function HomeScreen() {
       Alert.alert(t('alert_error'), 'Erreur lors du like');
     }
   };
+
+  // Réactions supprimées - utilisation des likes uniquement
 
   const handleSave = async (recipeId: string) => {
     try {
@@ -163,6 +189,15 @@ export default function HomeScreen() {
             colors={[Colors.light.primary]}
           />
         }
+        onEndReached={loadMoreData}
+        onEndReachedThreshold={0.1}
+        ListFooterComponent={() => (
+          isLoadingMore ? (
+            <View style={styles.loadingMore}>
+              <RecipeCardSkeleton />
+            </View>
+          ) : null
+        )}
         ListEmptyComponent={() => (
           <EmptyState
             icon="restaurant-outline"
@@ -211,5 +246,9 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 0,
+  },
+  loadingMore: {
+    paddingVertical: 20,
+    alignItems: 'center',
   },
 });

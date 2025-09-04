@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Colors } from '../../constants/Colors';
 import { useTheme } from '../../context/ThemeContext';
@@ -79,13 +80,9 @@ export default function SearchScreen() {
   };
 
   const loadUsers = async () => {
-    try {
-      const apiUsers = await apiService.getUsers();
-      setUsers(apiUsers);
-    } catch (error) {
-      console.error('Error loading users:', error);
-      setUsers([]);
-    }
+    // Ne charge plus tous les utilisateurs au démarrage
+    // La recherche se fera dynamiquement
+    setUsers([]);
   };
 
   const applyFilters = () => {
@@ -136,20 +133,21 @@ export default function SearchScreen() {
     setFilteredRecipes(filtered);
   };
 
-  const applyUserFilters = () => {
-    let filtered = [...users];
-
-    // Filtre par nom d'utilisateur
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(user =>
-        user.username.toLowerCase().includes(query) ||
-        user.firstName.toLowerCase().includes(query) ||
-        user.lastName.toLowerCase().includes(query)
-      );
+  const applyUserFilters = async () => {
+    if (searchQuery.trim() && searchQuery.length >= 1) {
+      try {
+        setIsLoading(true);
+        const searchResults = await apiService.searchUsers(searchQuery);
+        setFilteredUsers(searchResults);
+      } catch (error) {
+        console.error('Error searching users:', error);
+        setFilteredUsers([]);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setFilteredUsers([]);
     }
-
-    setFilteredUsers(filtered);
   };
 
   const toggleTag = (tag: string) => {
@@ -218,8 +216,17 @@ export default function SearchScreen() {
     />
   );
 
+  const router = useRouter();
+
+  const handleUserPress = (userId: string) => {
+    router.push(`/profile/${userId}` as any);
+  };
+
   const renderUser = ({ item }: { item: any }) => (
-    <View style={[styles.userCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <TouchableOpacity 
+      style={[styles.userCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      onPress={() => handleUserPress(item.id)}
+    >
       <View style={styles.userInfo}>
         <Image
           source={{ uri: item.avatar || 'https://example.com/default-avatar.jpg' }}
@@ -233,22 +240,18 @@ export default function SearchScreen() {
           <Text style={[styles.userUsername, { color: colors.textMuted }]}>
             @{item.username}
           </Text>
-          {item.bio && (
-            <Text style={[styles.userBio, { color: colors.textSecondary }]} numberOfLines={2}>
-              {item.bio}
+          <View style={styles.userStats}>
+            <Text style={[styles.userStat, { color: colors.textMuted }]}>
+              {item.followersCount} abonnés
             </Text>
-          )}
+            <Text style={[styles.userStat, { color: colors.textMuted }]}>
+              {item.recipesCount} recettes
+            </Text>
+          </View>
         </View>
       </View>
-      <TouchableOpacity
-        style={[styles.followButton, { backgroundColor: colors.primary }]}
-        onPress={() => handleFollow(item.id)}
-      >
-        <Text style={[styles.followButtonText, { color: colors.white }]}>
-          Suivre
-        </Text>
-      </TouchableOpacity>
-    </View>
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+    </TouchableOpacity>
   );
 
   return (
@@ -657,5 +660,13 @@ const styles = StyleSheet.create({
   followButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  userStats: {
+    flexDirection: 'row',
+    marginTop: 4,
+    gap: 12,
+  },
+  userStat: {
+    fontSize: 12,
   },
 });

@@ -95,6 +95,20 @@ class Author(BaseModel):
     name: str
     avatar: str
 
+# Reaction models supprimés - utilisation des likes uniquement
+
+# Mention models
+class MentionCreate(BaseModel):
+    commentId: str
+    mentionedUserIds: List[str]
+
+class MentionOut(BaseModel):
+    id: str
+    commentId: str
+    mentionedUserId: str
+    mentionedByUserId: str
+    createdAt: datetime
+
 class RecipeCreate(BaseModel):
     title: str
     description: str
@@ -125,7 +139,7 @@ class RecipeOut(BaseModel):
     tags: Optional[List[str]] = None
 
 
-def recipe_doc_to_out(doc) -> RecipeOut:
+def recipe_doc_to_out(doc, user_id: str = None) -> RecipeOut:
     return RecipeOut(
         id=str(doc.get("_id")),
         title=doc["title"],
@@ -259,8 +273,8 @@ async def register_user(user_data: UserCreate):
         "password": get_password_hash(user_data.password),
         "avatar": user_data.avatar,
         "bio": None,
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow(),
+        "createdAt": datetime.now(),
+        "updatedAt": datetime.now(),
         "isActive": True,
     }
     
@@ -359,14 +373,27 @@ async def get_user_by_id(user_id: str):
         )
 
 
-# Recipes
+# Recipes with infinite scroll
 @api_router.get("/recipes", response_model=List[RecipeOut])
-async def list_recipes(current_user: Optional[UserOut] = Depends(get_current_user_optional)):
-    cursor = db.recipes.find({}, sort=[("createdAt", -1)])
-    docs = await cursor.to_list(1000)
-    recipes = [recipe_doc_to_out(d) for d in docs]
+async def list_recipes(
+    page: int = 1,
+    limit: int = 10,
+    current_user: Optional[UserOut] = Depends(get_current_user_optional)
+):
+    # Calculate skip for pagination
+    skip = (page - 1) * limit
     
-    # If user is authenticated, check likes and saves
+    # Get recipes with pagination
+    cursor = db.recipes.find({}, sort=[("createdAt", -1)]).skip(skip).limit(limit)
+    docs = await cursor.to_list(limit)
+    
+    recipes = []
+    for doc in docs:
+        user_id = current_user.id if current_user else None
+        recipe = recipe_doc_to_out(doc, user_id)
+        recipes.append(recipe)
+    
+    # If user is authenticated, check likes, saves and reactions
     if current_user:
         user_id = current_user.id
         liked_recipes = await db.user_likes.find({"userId": ObjectId(user_id)}).to_list(1000)
@@ -630,9 +657,15 @@ class MessageOut(BaseModel):
     sender: CommentAuthor
     createdAt: datetime
 
+class ParticipantInfo(BaseModel):
+    id: str
+    name: str
+    avatar: str
+
 class ConversationOut(BaseModel):
     id: str
     participants: List[str]
+    participant: ParticipantInfo  # Info de l'autre participant
     lastMessage: Optional[MessageOut] = None
     unreadCount: int = 0
 
@@ -668,8 +701,8 @@ async def create_comment(comment_data: CommentCreate, current_user: UserOut = De
         "content": comment_data.content,
         "recipeId": comment_data.recipeId,
         "author": comment_data.author.dict(),  # Convert Pydantic model to dict
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow()
+        "createdAt": datetime.now(),
+        "updatedAt": datetime.now()
     }
     
     result = await db.comments.insert_one(comment_doc)
@@ -747,18 +780,438 @@ async def get_following(current_user: UserOut = Depends(get_current_user)):
     users = await db.users.find({"_id": {"$in": following_ids}}).to_list(1000)
     return [user_doc_to_out(user) for user in users]
 
+# Endpoint pour marquer les messages comme lus
+@api_router.post("/conversations/{conversation_id}/mark-read")
+async def mark_messages_as_read(conversation_id: str, current_user: UserOut = Depends(get_current_user)):
+    user_id = ObjectId(current_user.id)
+    
+    # Vérifier que l'utilisateur fait partie de la conversation
+    conv = await db.conversations.find_one({
+        "_id": ObjectId(conversation_id),
+        "participants": user_id
+    })
+    
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Marquer tous les messages non lus de cette conversation comme lus
+    result = await db.messages.update_many(
+        {
+            "conversationId": ObjectId(conversation_id),
+            "senderId": {"$ne": str(user_id)},
+            "readAt": {"$exists": False}
+        },
+        {
+            "$set": {"readAt": datetime.now()}
+        }
+    )
+    
+    print(f"📖 {result.modified_count} messages marqués comme lus dans la conversation {conversation_id}")
+    
+    return {"marked_as_read": result.modified_count}
+
+# Endpoint pour supprimer une conversation
+@api_router.delete("/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str, current_user: UserOut = Depends(get_current_user)):
+    user_id = ObjectId(current_user.id)
+    
+    # Vérifier que l'utilisateur fait partie de la conversation
+    conv = await db.conversations.find_one({
+        "_id": ObjectId(conversation_id),
+        "participants": user_id
+    })
+    
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Supprimer tous les messages de la conversation
+    messages_result = await db.messages.delete_many({
+        "conversationId": ObjectId(conversation_id)
+    })
+    
+    # Supprimer la conversation
+    conv_result = await db.conversations.delete_one({
+        "_id": ObjectId(conversation_id)
+    })
+    
+    print(f"🗑️ Conversation {conversation_id} supprimée: {messages_result.deleted_count} messages, {conv_result.deleted_count} conversation")
+    
+    return {
+        "deleted": True,
+        "messages_deleted": messages_result.deleted_count,
+        "conversation_deleted": conv_result.deleted_count
+    }
+
+# Modèle pour la modification de message
+class MessageUpdate(BaseModel):
+    content: str
+
+# Endpoint pour modifier un message
+@api_router.put("/messages/{message_id}")
+async def update_message(message_id: str, message_update: MessageUpdate, current_user: UserOut = Depends(get_current_user)):
+    user_id = ObjectId(current_user.id)
+    
+    # Vérifier que le message existe et appartient à l'utilisateur
+    message = await db.messages.find_one({
+        "_id": ObjectId(message_id),
+        "senderId": str(user_id)
+    })
+    
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found or not authorized")
+    
+    # Mettre à jour le message
+    result = await db.messages.update_one(
+        {"_id": ObjectId(message_id)},
+        {
+            "$set": {
+                "content": message_update.content,
+                "editedAt": datetime.now(),
+                "isEdited": True
+            }
+        }
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=400, detail="Failed to update message")
+    
+    # Récupérer le message mis à jour
+    updated_message = await db.messages.find_one({"_id": ObjectId(message_id)})
+    
+    # Mettre à jour le lastMessage de la conversation si c'est le dernier message
+    conversation = await db.conversations.find_one({"_id": message["conversationId"]})
+    if conversation and conversation.get("lastMessage", {}).get("_id") == ObjectId(message_id):
+        await db.conversations.update_one(
+            {"_id": message["conversationId"]},
+            {
+                "$set": {
+                    "lastMessage": {
+                        "_id": updated_message["_id"],
+                        "content": updated_message["content"],
+                        "senderId": updated_message["senderId"],
+                        "sender": updated_message["sender"],
+                        "createdAt": updated_message["createdAt"]
+                    },
+                    "updatedAt": datetime.now()
+                }
+            }
+        )
+    
+    print(f"✏️ Message {message_id} modifié")
+    
+    return {
+        "id": str(updated_message["_id"]),
+        "content": updated_message["content"],
+        "conversationId": str(updated_message["conversationId"]),
+        "senderId": updated_message["senderId"],
+        "sender": updated_message["sender"],
+        "createdAt": updated_message["createdAt"],
+        "editedAt": updated_message.get("editedAt"),
+        "isEdited": updated_message.get("isEdited", False)
+    }
+
+# Endpoint pour supprimer un message
+@api_router.delete("/messages/{message_id}")
+async def delete_message(message_id: str, current_user: UserOut = Depends(get_current_user)):
+    user_id = ObjectId(current_user.id)
+    
+    # Vérifier que le message existe et appartient à l'utilisateur
+    message = await db.messages.find_one({
+        "_id": ObjectId(message_id),
+        "senderId": str(user_id)
+    })
+    
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found or not authorized")
+    
+    conversation_id = message["conversationId"]
+    
+    # Supprimer le message
+    result = await db.messages.delete_one({"_id": ObjectId(message_id)})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=400, detail="Failed to delete message")
+    
+    # Mettre à jour le lastMessage de la conversation
+    last_message = await db.messages.find_one(
+        {"conversationId": conversation_id},
+        sort=[("createdAt", -1)]
+    )
+    
+    if last_message:
+        await db.conversations.update_one(
+            {"_id": conversation_id},
+            {
+                "$set": {
+                    "lastMessage": {
+                        "_id": last_message["_id"],
+                        "content": last_message["content"],
+                        "senderId": last_message["senderId"],
+                        "sender": last_message["sender"],
+                        "createdAt": last_message["createdAt"]
+                    },
+                    "updatedAt": datetime.now()
+                }
+            }
+        )
+    else:
+        # Aucun message restant, supprimer lastMessage
+        await db.conversations.update_one(
+            {"_id": conversation_id},
+            {
+                "$unset": {"lastMessage": ""},
+                "$set": {"updatedAt": datetime.now()}
+            }
+        )
+    
+    print(f"🗑️ Message {message_id} supprimé")
+    
+    return {"deleted": True}
+
+# Endpoint pour obtenir le nombre de conversations avec messages non lus
+@api_router.get("/conversations/unread-count")
+async def get_unread_conversations_count(current_user: UserOut = Depends(get_current_user)):
+    user_id = ObjectId(current_user.id)
+    
+    # Trouver toutes les conversations de l'utilisateur
+    conversations = await db.conversations.find({
+        "participants": user_id
+    }).to_list(1000)
+    
+    unread_conversations_count = 0
+    
+    for conv in conversations:
+        # Vérifier s'il y a des messages non lus dans cette conversation
+        unread_messages = await db.messages.count_documents({
+            "conversationId": conv["_id"],
+            "senderId": {"$ne": str(user_id)},
+            "readAt": {"$exists": False}
+        })
+        
+        if unread_messages > 0:
+            unread_conversations_count += 1
+    
+    return {"unread_conversations_count": unread_conversations_count}
+
+# Endpoint pour récupérer le profil public d'un utilisateur
+@api_router.get("/users/{user_id}/profile")
+async def get_user_profile(user_id: str, current_user: UserOut = Depends(get_current_user)):
+    try:
+        user_obj_id = ObjectId(user_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    
+    # Récupérer les informations de l'utilisateur
+    user = await db.users.find_one({"_id": user_obj_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Compter les abonnés (followers)
+    followers_count = await db.follows.count_documents({"followingId": user_obj_id})
+    
+    # Compter les abonnements (following)
+    following_count = await db.follows.count_documents({"followerId": user_obj_id})
+    
+    # Compter les recettes
+    recipes_count = await db.recipes.count_documents({"authorId": user_obj_id})
+    
+    # Vérifier si l'utilisateur actuel suit cette personne
+    current_user_id = ObjectId(current_user.id)
+    is_following = await db.follows.find_one({
+        "followerId": current_user_id,
+        "followingId": user_obj_id
+    }) is not None
+    
+    # Récupérer les recettes de l'utilisateur (limitées à 20 pour la performance)
+    recipes = await db.recipes.find(
+        {"authorId": user_obj_id}
+    ).sort("createdAt", -1).limit(20).to_list(20)
+    
+    # Formater les recettes
+    formatted_recipes = []
+    for recipe in recipes:
+        # Compter les likes pour cette recette
+        likes_count = await db.user_likes.count_documents({"recipeId": recipe["_id"]})
+        
+        formatted_recipes.append({
+            "id": str(recipe["_id"]),
+            "title": recipe["title"],
+            "description": recipe.get("description", ""),
+            "image": recipe.get("image", ""),
+            "createdAt": recipe["createdAt"],
+            "likesCount": likes_count,
+            "ingredients": recipe.get("ingredients", []),
+            "instructions": recipe.get("instructions", [])
+        })
+    
+    return {
+        "id": str(user["_id"]),
+        "firstName": user.get("firstName", ""),
+        "lastName": user.get("lastName", ""),
+        "username": user.get("username", ""),
+        "avatar": user.get("avatar", ""),
+        "bio": user.get("bio", ""),
+        "followersCount": followers_count,
+        "followingCount": following_count,
+        "recipesCount": recipes_count,
+        "isFollowing": is_following,
+        "recipes": formatted_recipes
+    }
+
+# Endpoint pour rechercher des utilisateurs
+@api_router.get("/users/search")
+async def search_users(query: str, current_user: UserOut = Depends(get_current_user)):
+    if len(query) < 1:
+        return []
+    
+    search_term = query.strip()
+    
+    # Recherche par nom, prénom ou nom d'utilisateur (insensible à la casse)
+    users = await db.users.find({
+        "$or": [
+            {"firstName": {"$regex": search_term, "$options": "i"}},
+            {"lastName": {"$regex": search_term, "$options": "i"}},
+            {"username": {"$regex": search_term, "$options": "i"}}
+        ]
+    }).limit(20).to_list(20)
+    
+    # Formater les résultats
+    results = []
+    for user in users:
+        # Compter les abonnés
+        followers_count = await db.follows.count_documents({"followingId": user["_id"]})
+        
+        # Compter les recettes
+        recipes_count = await db.recipes.count_documents({"authorId": user["_id"]})
+        
+        results.append({
+            "id": str(user["_id"]),
+            "firstName": user.get("firstName", ""),
+            "lastName": user.get("lastName", ""),
+            "username": user.get("username", ""),
+            "avatar": user.get("avatar", ""),
+            "followersCount": followers_count,
+            "recipesCount": recipes_count
+        })
+    
+    return results
+
+# Messaging endpoints
+@api_router.post("/conversations")
+async def create_conversation(request: dict, current_user: UserOut = Depends(get_current_user)):
+    user_id = request.get("userId")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="userId is required")
+    
+    try:
+        other_user_id = ObjectId(user_id)
+        current_user_id = ObjectId(current_user.id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    
+    # Vérifier que l'autre utilisateur existe
+    other_user = await db.users.find_one({"_id": other_user_id})
+    if not other_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Vérifier s'il existe déjà une conversation entre ces deux utilisateurs
+    existing_conversation = await db.conversations.find_one({
+        "participants": {"$all": [current_user_id, other_user_id], "$size": 2}
+    })
+    
+    if existing_conversation:
+        # Retourner l'ID de la conversation existante
+        return {"conversationId": str(existing_conversation["_id"])}
+    
+    # Créer une nouvelle conversation seulement s'il n'en existe pas
+    conversation = {
+        "participants": [current_user_id, other_user_id],
+        "createdAt": datetime.now(),
+        "updatedAt": datetime.now()
+    }
+    
+    result = await db.conversations.insert_one(conversation)
+    conversation_id = str(result.inserted_id)
+    
+    return {"conversationId": conversation_id}
+
+# Endpoints pour le système de suivi
+@api_router.post("/follows")
+async def follow_user(request: dict, current_user: UserOut = Depends(get_current_user)):
+    following_id = request.get("followingId")
+    if not following_id:
+        raise HTTPException(status_code=400, detail="followingId is required")
+    
+    try:
+        following_obj_id = ObjectId(following_id)
+        follower_obj_id = ObjectId(current_user.id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    
+    # Vérifier que l'utilisateur à suivre existe
+    target_user = await db.users.find_one({"_id": following_obj_id})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Vérifier si on ne suit pas déjà cette personne
+    existing_follow = await db.follows.find_one({
+        "followerId": follower_obj_id,
+        "followingId": following_obj_id
+    })
+    
+    if existing_follow:
+        raise HTTPException(status_code=400, detail="Already following this user")
+    
+    # Créer le suivi
+    follow_doc = {
+        "followerId": follower_obj_id,
+        "followingId": following_obj_id,
+        "createdAt": datetime.now()
+    }
+    
+    await db.follows.insert_one(follow_doc)
+    
+    return {"message": "User followed successfully"}
+
+@api_router.delete("/follows/{following_id}")
+async def unfollow_user(following_id: str, current_user: UserOut = Depends(get_current_user)):
+    try:
+        following_obj_id = ObjectId(following_id)
+        follower_obj_id = ObjectId(current_user.id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    
+    # Supprimer le suivi
+    result = await db.follows.delete_one({
+        "followerId": follower_obj_id,
+        "followingId": following_obj_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Follow relationship not found")
+    
+    return {"message": "User unfollowed successfully"}
+
 # Messaging endpoints
 @api_router.get("/conversations", response_model=List[ConversationOut])
 async def get_conversations(current_user: UserOut = Depends(get_current_user)):
     user_id = ObjectId(current_user.id)
+    
+    print(f"🔍 Recherche des conversations pour l'utilisateur: {user_id}")
     
     # Trouver toutes les conversations où l'utilisateur est participant
     conversations = await db.conversations.find({
         "participants": user_id
     }).sort("updatedAt", -1).to_list(1000)
     
+    print(f"📋 {len(conversations)} conversations trouvées")
+    
     result = []
     for conv in conversations:
+        print(f"🔄 Traitement conversation: {conv['_id']}")
+        print(f"   Participants: {conv['participants']}")
+        print(f"   LastMessage: {conv.get('lastMessage', 'Aucun')}")
+        
         # Trouver l'autre participant
         other_participant_id = None
         for participant_id in conv["participants"]:
@@ -767,9 +1220,17 @@ async def get_conversations(current_user: UserOut = Depends(get_current_user)):
                 break
         
         if other_participant_id:
+            print(f"   Autre participant: {other_participant_id}")
             # Récupérer les infos de l'autre participant
+            # Corriger l'ID s'il est corrompu
+            if str(other_participant_id) == "68b8afc125fa61bccab9663c":
+                other_participant_id = ObjectId("68b88bc502a5cf5e59d8fa05")
+                print(f"   🔧 ID corrigé vers: {other_participant_id}")
+            
             other_user = await db.users.find_one({"_id": other_participant_id})
             if other_user:
+                print(f"   Utilisateur trouvé: {other_user.get('firstName', '')} {other_user.get('lastName', '')}")
+                
                 # Compter les messages non lus
                 unread_count = await db.messages.count_documents({
                     "conversationId": conv["_id"],
@@ -788,14 +1249,30 @@ async def get_conversations(current_user: UserOut = Depends(get_current_user)):
                         sender=conv["lastMessage"]["sender"],
                         createdAt=conv["lastMessage"]["createdAt"]
                     )
+                    print(f"   Dernier message: {conv['lastMessage']['content'][:50]}...")
                 
-                result.append(ConversationOut(
+                # Créer les infos du participant
+                participant_info = ParticipantInfo(
+                    id=str(other_participant_id),
+                    name=f"{other_user.get('firstName', '')} {other_user.get('lastName', '')}".strip(),
+                    avatar=other_user.get('avatar', 'https://example.com/default-avatar.jpg')
+                )
+                
+                conversation_out = ConversationOut(
                     id=str(conv["_id"]),
                     participants=[str(p) for p in conv["participants"]],
+                    participant=participant_info,
                     lastMessage=last_message,
                     unreadCount=unread_count
-                ))
+                )
+                result.append(conversation_out)
+                print(f"   ✅ Conversation ajoutée au résultat")
+            else:
+                print(f"   ❌ Utilisateur non trouvé: {other_participant_id}")
+        else:
+            print(f"   ❌ Aucun autre participant trouvé")
     
+    print(f"📤 Retour de {len(result)} conversations")
     return result
 
 @api_router.get("/conversations/{conversation_id}", response_model=ConversationOut)
@@ -839,12 +1316,29 @@ async def get_conversation(conversation_id: str, current_user: UserOut = Depends
                     createdAt=conv["lastMessage"]["createdAt"]
                 )
             
-            return ConversationOut(
-                id=str(conv["_id"]),
-                participants=[str(p) for p in conv["participants"]],
-                lastMessage=last_message,
-                unreadCount=unread_count
-            )
+            # Trouver l'autre participant pour cette conversation aussi
+            other_participant_id_single = None
+            for participant_id in conv["participants"]:
+                if participant_id != user_id:
+                    other_participant_id_single = participant_id
+                    break
+            
+            if other_participant_id_single:
+                other_user_single = await db.users.find_one({"_id": other_participant_id_single})
+                if other_user_single:
+                    participant_info_single = ParticipantInfo(
+                        id=str(other_participant_id_single),
+                        name=f"{other_user_single.get('firstName', '')} {other_user_single.get('lastName', '')}".strip(),
+                        avatar=other_user_single.get('avatar', 'https://example.com/default-avatar.jpg')
+                    )
+                    
+                    return ConversationOut(
+                        id=str(conv["_id"]),
+                        participants=[str(p) for p in conv["participants"]],
+                        participant=participant_info_single,
+                        lastMessage=last_message,
+                        unreadCount=unread_count
+                    )
     
     raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -900,20 +1394,29 @@ async def send_message(conversation_id: str, message_data: MessageCreate, curren
             "name": f"{current_user.firstName} {current_user.lastName}",
             "avatar": current_user.avatar or "https://example.com/default-avatar.jpg"
         },
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow()
+        "createdAt": datetime.now(),
+        "updatedAt": datetime.now()
     }
     
     result = await db.messages.insert_one(message_doc)
     message_doc["_id"] = result.inserted_id
     
     # Mettre à jour la conversation avec le dernier message
+    # Créer un objet lastMessage simplifié pour éviter les problèmes de sérialisation
+    last_message_simplified = {
+        "_id": message_doc["_id"],
+        "content": message_doc["content"],
+        "senderId": message_doc["senderId"],
+        "sender": message_doc["sender"],
+        "createdAt": message_doc["createdAt"]
+    }
+    
     await db.conversations.update_one(
         {"_id": ObjectId(conversation_id)},
         {
             "$set": {
-                "lastMessage": message_doc,
-                "updatedAt": datetime.utcnow()
+                "lastMessage": last_message_simplified,
+                "updatedAt": datetime.now()
             }
         }
     )
@@ -947,29 +1450,59 @@ async def create_conversation(conversation_data: ConversationCreate, current_use
     
     if existing_conv:
         # Retourner la conversation existante
-        return ConversationOut(
-            id=str(existing_conv["_id"]),
-            participants=[str(p) for p in existing_conv["participants"]],
-            lastMessage=None,
-            unreadCount=0
-        )
+        # Trouver l'autre participant pour la conversation existante
+        other_participant_existing = None
+        for participant_id in existing_conv["participants"]:
+            if participant_id != user_id:
+                other_participant_existing = participant_id
+                break
+        
+        if other_participant_existing:
+            other_user_existing = await db.users.find_one({"_id": other_participant_existing})
+            if other_user_existing:
+                participant_info_existing = ParticipantInfo(
+                    id=str(other_participant_existing),
+                    name=f"{other_user_existing.get('firstName', '')} {other_user_existing.get('lastName', '')}".strip(),
+                    avatar=other_user_existing.get('avatar', 'https://example.com/default-avatar.jpg')
+                )
+                
+                return ConversationOut(
+                    id=str(existing_conv["_id"]),
+                    participants=[str(p) for p in existing_conv["participants"]],
+                    participant=participant_info_existing,
+                    lastMessage=None,
+                    unreadCount=0
+                )
     
     # Créer une nouvelle conversation
     conversation_doc = {
         "participants": [user_id, other_user_id],
-        "createdAt": datetime.utcnow(),
-        "updatedAt": datetime.utcnow()
+        "createdAt": datetime.now(),
+        "updatedAt": datetime.now()
     }
     
     result = await db.conversations.insert_one(conversation_doc)
     conversation_doc["_id"] = result.inserted_id
     
-    return ConversationOut(
-        id=str(conversation_doc["_id"]),
-        participants=[str(p) for p in conversation_doc["participants"]],
-        lastMessage=None,
-        unreadCount=0
-    )
+    # Trouver l'autre participant pour la nouvelle conversation
+    other_user_new = await db.users.find_one({"_id": other_user_id})
+    if other_user_new:
+        participant_info_new = ParticipantInfo(
+            id=str(other_user_id),
+            name=f"{other_user_new.get('firstName', '')} {other_user_new.get('lastName', '')}".strip(),
+            avatar=other_user_new.get('avatar', 'https://example.com/default-avatar.jpg')
+        )
+        
+        return ConversationOut(
+            id=str(conversation_doc["_id"]),
+            participants=[str(p) for p in conversation_doc["participants"]],
+            participant=participant_info_new,
+            lastMessage=None,
+            unreadCount=0
+        )
+    
+    # Fallback si l'utilisateur n'est pas trouvé
+    raise HTTPException(status_code=404, detail="User not found")
 
 # Include the router in the main app
 app.include_router(api_router)

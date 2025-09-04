@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
@@ -36,10 +37,17 @@ export default function MessagesScreen() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
 
   useEffect(() => {
     loadConversations();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadConversations();
+    }, [])
+  );
 
   const loadConversations = async () => {
     try {
@@ -54,53 +62,89 @@ export default function MessagesScreen() {
     }
   };
 
+  const handleDeleteConversation = async (conversationId: string) => {
+    Alert.alert(
+      'Supprimer la conversation',
+      'Êtes-vous sûr de vouloir supprimer cette conversation ? Cette action est irréversible.',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.deleteConversation(conversationId);
+              setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+              Alert.alert('Succès', 'Conversation supprimée avec succès');
+            } catch (error) {
+              console.error('Error deleting conversation:', error);
+              Alert.alert('Erreur', 'Impossible de supprimer la conversation');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleConversationPress = (conversation: Conversation) => {
     router.push(`/chat/${conversation.id}`);
   };
 
   const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity
-      style={[styles.conversationItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
-      onPress={() => handleConversationPress(item)}
-    >
-      <Image
-        source={{ uri: item.participant.avatar || 'https://example.com/default-avatar.jpg' }}
-        style={styles.avatar}
-        contentFit="cover"
-      />
-      <View style={styles.conversationContent}>
-        <View style={styles.conversationHeader}>
-          <Text style={[styles.participantName, { color: colors.text }]}>
-            {item.participant.name}
-          </Text>
-          <Text style={[styles.messageTime, { color: colors.textMuted }]}>
-            {new Date(item.lastMessage.createdAt).toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </Text>
+    <View style={[styles.conversationItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <TouchableOpacity
+        style={styles.conversationContent}
+        onPress={() => handleConversationPress(item)}
+      >
+        <Image
+          source={{ uri: item.participant.avatar || 'https://example.com/default-avatar.jpg' }}
+          style={styles.avatar}
+          contentFit="cover"
+        />
+        <View style={styles.conversationInfo}>
+          <View style={styles.conversationHeader}>
+            <Text style={[styles.participantName, { color: colors.text }]}>
+              {item.participant.name}
+            </Text>
+            <Text style={[styles.messageTime, { color: colors.textMuted }]}>
+              {new Date(item.lastMessage.createdAt).toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </Text>
+          </View>
+          <View style={styles.messagePreview}>
+            <Text 
+              style={[
+                styles.lastMessage, 
+                { color: colors.textSecondary },
+                item.lastMessage.senderId === user?.id && styles.ownMessage
+              ]}
+              numberOfLines={1}
+            >
+              {item.lastMessage.senderId === user?.id ? 'Vous: ' : ''}{item.lastMessage.content}
+            </Text>
+            {item.unreadCount > 0 && (
+              <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
+                <Text style={[styles.unreadText, { color: colors.white }]}>
+                  {item.unreadCount}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-        <View style={styles.messagePreview}>
-          <Text 
-            style={[
-              styles.lastMessage, 
-              { color: colors.textSecondary },
-              item.lastMessage.senderId === user?.id && styles.ownMessage
-            ]}
-            numberOfLines={1}
-          >
-            {item.lastMessage.senderId === user?.id ? 'Vous: ' : ''}{item.lastMessage.content}
-          </Text>
-          {item.unreadCount > 0 && (
-            <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.unreadText, { color: colors.white }]}>
-                {item.unreadCount}
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => handleDeleteConversation(item.id)}
+      >
+        <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -187,14 +231,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 12,
   },
+  conversationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  conversationInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  deleteButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    marginRight: 12,
-  },
-  conversationContent: {
-    flex: 1,
   },
   conversationHeader: {
     flexDirection: 'row',

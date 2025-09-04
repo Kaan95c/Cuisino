@@ -1,17 +1,31 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../../constants/Colors';
-import { useColorScheme, Animated, TouchableOpacity } from 'react-native';
+import { useColorScheme, Animated, TouchableOpacity, View, Text } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useLanguage } from '../../context/LanguageContext';
+import { useUnread } from '../../context/UnreadContext';
 
 export default function TabsLayout() {
   const { isDark } = useTheme();
   const { t } = useLanguage();
   const theme = isDark ? Colors.dark : Colors.light;
+  const { unreadCount, refreshUnreadCount } = useUnread();
+
+  useEffect(() => {
+    refreshUnreadCount();
+    const interval = setInterval(refreshUnreadCount, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [refreshUnreadCount]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshUnreadCount();
+    }, [refreshUnreadCount])
+  );
 
   const AnimatedIcon = ({ name, color, size, focused }: { name: keyof typeof Ionicons.glyphMap; color: string; size: number; focused: boolean }) => {
     const scale = React.useRef(new Animated.Value(focused ? 1 : 0.9)).current;
@@ -78,11 +92,40 @@ export default function TabsLayout() {
           ),
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => router.push('/messages')}
+              onPress={() => {
+                router.push('/messages');
+                // Refresh unread count when navigating to messages
+                setTimeout(refreshUnreadCount, 1000);
+              }}
               style={{ marginRight: 12, padding: 6 }}
               activeOpacity={0.8}
             >
-              <Ionicons name="chatbubbles-outline" size={22} color={theme.text} />
+              <View style={{ position: 'relative' }}>
+                <Ionicons name="chatbubbles-outline" size={22} color={theme.text} />
+                {unreadCount > 0 && (
+                  <View style={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -6,
+                    backgroundColor: '#FF3B30',
+                    borderRadius: 10,
+                    minWidth: 20,
+                    height: 20,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingHorizontal: 4,
+                  }}>
+                    <Text style={{
+                      color: 'white',
+                      fontSize: 12,
+                      fontWeight: '600',
+                      textAlign: 'center',
+                    }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           ),
         }}

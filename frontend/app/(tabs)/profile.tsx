@@ -36,6 +36,11 @@ export default function ProfileScreen() {
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [activeTab, setActiveTab] = useState<'recipes' | 'liked' | 'saved'>('recipes');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [userStats, setUserStats] = useState({
+    followersCount: 0,
+    followingCount: 0,
+    recipesCount: 0
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -46,15 +51,24 @@ export default function ProfileScreen() {
   const loadUserData = async () => {
     try {
       // Charger les recettes de l'utilisateur depuis l'API
-      const [userRecipesData, likedRecipesData, savedRecipesData] = await Promise.all([
+      const [userRecipesData, likedRecipesData, savedRecipesData, userProfile] = await Promise.all([
         apiService.getUserRecipes(),
         apiService.getLikedRecipes(),
-        apiService.getSavedRecipes()
+        apiService.getSavedRecipes(),
+        user ? apiService.getUserProfile(user.id) : null
       ]);
       
       setUserRecipes(userRecipesData);
       setLikedRecipes(likedRecipesData);
       setSavedRecipes(savedRecipesData);
+      
+      if (userProfile) {
+        setUserStats({
+          followersCount: userProfile.followersCount,
+          followingCount: userProfile.followingCount,
+          recipesCount: userProfile.recipesCount
+        });
+      }
     } catch (error) {
       console.error('Error loading user data:', error);
       // En cas d'erreur, initialiser avec des tableaux vides
@@ -168,16 +182,16 @@ export default function ProfileScreen() {
           {/* Stats */}
           <View style={styles.stats}>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>{userRecipes.length}</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{userStats.recipesCount}</Text>
               <Text style={[styles.statLabel, { color: colors.textMuted }]}>Recettes</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>{likedRecipes.length}</Text>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Likes</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{userStats.followersCount}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Abonnés</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>{savedRecipes.length}</Text>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Enregistrées</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{userStats.followingCount}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>Abonnements</Text>
             </View>
           </View>
 

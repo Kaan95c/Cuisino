@@ -148,8 +148,8 @@ class ApiService {
     });
   }
 
-  async getRecipes(): Promise<any[]> {
-    return this.makeRequest('/recipes');
+  async getRecipes(page: number = 1, limit: number = 10): Promise<any[]> {
+    return this.makeRequest(`/recipes?page=${page}&limit=${limit}`);
   }
 
   async getRecipeById(id: string): Promise<any> {
@@ -163,11 +163,28 @@ class ApiService {
     });
   }
 
+  // Méthode addReaction supprimée - utilisation des likes uniquement
+
   async toggleSave(recipeId: string): Promise<any> {
     return this.makeRequest(`/recipes/${recipeId}`, {
       method: 'PATCH',
       body: JSON.stringify({ action: 'toggle_save' }),
     });
+  }
+
+  // Messaging methods
+  async markMessagesAsRead(conversationId: string): Promise<any> {
+    return this.makeRequest(`/conversations/${conversationId}/mark-read`, {
+      method: 'POST',
+    });
+  }
+
+  async getUnreadConversationsCount(): Promise<{ unread_conversations_count: number }> {
+    return this.makeRequest('/conversations/unread-count');
+  }
+
+  async getConversation(conversationId: string): Promise<any> {
+    return this.makeRequest(`/conversations/${conversationId}`);
   }
 
   async getUserRecipes(): Promise<any[]> {
@@ -182,47 +199,28 @@ class ApiService {
     return this.makeRequest('/users/me/saved-recipes');
   }
 
-  async deleteRecipe(recipeId: string): Promise<any> {
-    return this.makeRequest(`/recipes/${recipeId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // Comment methods
-  async getComments(recipeId: string): Promise<any[]> {
-    return this.makeRequest(`/recipes/${recipeId}/comments`);
-  }
-
-  async addComment(commentData: any): Promise<any> {
-    return this.makeRequest('/comments', {
-      method: 'POST',
-      body: JSON.stringify(commentData),
-    });
-  }
-
-  // User methods
   async getUsers(): Promise<any[]> {
     return this.makeRequest('/users');
   }
 
-  async followUser(userId: string): Promise<any> {
-    return this.makeRequest(`/users/${userId}/follow`, {
+  async getComments(recipeId: string): Promise<any[]> {
+    return this.makeRequest(`/recipes/${recipeId}/comments`);
+  }
+
+  async createComment(recipeId: string, content: string): Promise<any> {
+    const user = await this.getCurrentUser();
+    return this.makeRequest(`/recipes/${recipeId}/comments`, {
       method: 'POST',
+      body: JSON.stringify({
+        content,
+        recipeId,
+        author: {
+          id: user.id,
+          name: `${user.firstName} ${user.lastName}`,
+          avatar: user.avatar || 'https://example.com/default-avatar.jpg'
+        }
+      }),
     });
-  }
-
-  async unfollowUser(userId: string): Promise<any> {
-    return this.makeRequest(`/users/${userId}/unfollow`, {
-      method: 'POST',
-    });
-  }
-
-  async getFollowers(): Promise<any[]> {
-    return this.makeRequest('/users/me/followers');
-  }
-
-  async getFollowing(): Promise<any[]> {
-    return this.makeRequest('/users/me/following');
   }
 
   // Messaging methods
@@ -248,8 +246,44 @@ class ApiService {
     });
   }
 
-  async getConversation(conversationId: string): Promise<any> {
-    return this.makeRequest(`/conversations/${conversationId}`);
+  async deleteConversation(conversationId: string): Promise<any> {
+    return this.makeRequest(`/conversations/${conversationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateMessage(messageId: string, content: string): Promise<any> {
+    return this.makeRequest(`/messages/${messageId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async deleteMessage(messageId: string): Promise<void> {
+    return this.makeRequest(`/messages/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getUserProfile(userId: string): Promise<any> {
+    return this.makeRequest(`/users/${userId}/profile`);
+  }
+
+  async searchUsers(query: string): Promise<any[]> {
+    return this.makeRequest(`/users/search?q=${encodeURIComponent(query)}`);
+  }
+
+  async followUser(userId: string): Promise<any> {
+    return this.makeRequest('/follows', {
+      method: 'POST',
+      body: JSON.stringify({ followingId: userId }),
+    });
+  }
+
+  async unfollowUser(userId: string): Promise<any> {
+    return this.makeRequest(`/follows/${userId}`, {
+      method: 'DELETE',
+    });
   }
 }
 
